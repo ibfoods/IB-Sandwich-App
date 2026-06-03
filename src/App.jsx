@@ -708,7 +708,7 @@ export default function App() {
   const saveOrder = async () => {
     setSaving(true)
     try {
-      const { data, error } = await supabase.from('sandwich_orders').insert([{
+      const { error } = await supabase.from('sandwich_orders').insert([{
         order_number: orderNum,
         first_name: customer.firstName,
         last_name: customer.lastName,
@@ -723,15 +723,9 @@ export default function App() {
         notes: order.notes || null,
         total: calcTotal(order),
       }])
-      if (error) {
-        console.error('Supabase insert error:', error)
-        alert('Order save failed: ' + JSON.stringify(error))
-      } else {
-        console.log('Order saved:', data)
-      }
+      if (error) console.error('Supabase insert error:', error)
     } catch (e) {
       console.error('Supabase save error', e)
-      alert('Order save exception: ' + e.message)
     }
     setSaving(false)
     setScreen('confirm')
