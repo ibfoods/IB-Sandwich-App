@@ -19,10 +19,12 @@ function calcTotal(order) {
   if (!order.bread) return 0
   const hero = isHeroBread(order.bread)
   let total = 0
-  order.proteins.forEach(p => {
+  // Price based on most expensive protein only
+  const proteinPrices = order.proteins.map(p => {
     const found = PROTEINS.find(pr => pr.name === p)
-    if (found) total += hero ? (found.hero || 0) : (found.roll || 0)
+    return found ? (hero ? (found.hero || 0) : (found.roll || 0)) : 0
   })
+  if (proteinPrices.length) total += Math.max(...proteinPrices)
   const cp = hero ? 2.00 : 1.50
   total += order.cheeses.length * cp
   order.paidToppings.forEach(t => {
@@ -333,7 +335,14 @@ function CustomerInfoScreen({ onBack, onNext, initial }) {
         </div>
         <div>
           <label style={labelStyle}>Phone Number *</label>
-          <input style={inputStyle} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="(555) 555-5555" type="tel" />
+          <input style={inputStyle} value={form.phone} onChange={e => {
+            const raw = e.target.value.replace(/\D/g, '').slice(0, 10)
+            let fmt = raw
+            if (raw.length >= 7) fmt = `(${raw.slice(0,3)}) ${raw.slice(3,6)}-${raw.slice(6)}`
+            else if (raw.length >= 4) fmt = `(${raw.slice(0,3)}) ${raw.slice(3)}`
+            else if (raw.length > 0) fmt = `(${raw}`
+            set('phone', fmt)
+          }} placeholder="(555) 555-5555" type="tel" />
         </div>
         <div>
           <label style={labelStyle}>Email <span style={{ color:'var(--gray)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>(optional)</span></label>
@@ -368,8 +377,13 @@ function BreadScreen({ onBack, onNext, initial }) {
             <button key={b} style={S.chip(selected === b)} onClick={() => setSelected(b)}>{b}</button>
           ))}
         </CategorySection>
-        <CategorySection title="Hero & Wraps">
-          {['Hero', 'Plain Wrap', 'Spinach Wrap', 'Tomato Wrap', 'WW Wrap', 'Ciabatta', 'Sourdough', 'Focaccia', 'Lettuce Wrap'].map(b => (
+        <CategorySection title="Hero">
+          {['Hero', 'Ciabatta', 'Sourdough', 'Focaccia'].map(b => (
+            <button key={b} style={S.chip(selected === b)} onClick={() => setSelected(b)}>{b}</button>
+          ))}
+        </CategorySection>
+        <CategorySection title="Wraps">
+          {['Plain Wrap', 'Spinach Wrap', 'Tomato Wrap', 'WW Wrap', 'Lettuce Wrap'].map(b => (
             <button key={b} style={S.chip(selected === b)} onClick={() => setSelected(b)}>{b}</button>
           ))}
         </CategorySection>
