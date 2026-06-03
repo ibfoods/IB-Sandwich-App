@@ -589,7 +589,17 @@ function NotesScreen({ onBack, onNext, initial }) {
       <div style={S.body}>
         <div>
           <div style={S.sectionTitle}>Anything else?</div>
-          <div style={S.sectionSub}>Extra dressings, allergies, or special instructions</div>
+          <div style={S.sectionSub}>Use this for prep instructions or special requests.</div>
+          <div style={{ background:'var(--bg)', borderRadius:12, padding:'14px 16px', marginTop:4, display:'flex', flexDirection:'column', gap:10 }}>
+            <div>
+              <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:1, color:'#2e7d32', marginBottom:4 }}>No extra charge</div>
+              <div style={{ fontSize:13, color:'var(--gray-dark)', lineHeight:1.6 }}>Sliced thin · Cut in quarters · Dressing on the side · Light on the mayo</div>
+            </div>
+            <div style={{ borderTop:'1px solid var(--gray-light)', paddingTop:10 }}>
+              <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:1, color:'var(--red)', marginBottom:4 }}>May result in upcharge</div>
+              <div style={{ fontSize:13, color:'var(--gray-dark)', lineHeight:1.6 }}>Extra cheese · Substitutions · Add-ons not listed above · Gluten-free bread</div>
+            </div>
+          </div>
         </div>
         <textarea
           value={notes}
