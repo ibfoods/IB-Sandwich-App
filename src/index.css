@@ -1,0 +1,46 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --red: #8B1A2B;
+  --red-dark: #6d1422;
+  --red-light: #f9eaec;
+  --gold: #C9973A;
+  --gold-light: #fdf6ea;
+  --black: #1a1a1a;
+  --gray-dark: #444;
+  --gray: #888;
+  --gray-light: #e8e8e8;
+  --bg: #f5f3f0;
+  --white: #ffffff;
+  --radius: 16px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.10);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+  font-family: 'DM Sans', sans-serif;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+button { cursor: pointer; font-family: inherit; border: none; outline: none; }
+input, textarea { font-family: inherit; outline: none; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gray-light); border-radius: 2px; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fade-up { animation: fadeUp 0.35s ease both; }
+.fade-in { animation: fadeIn 0.25s ease both; }
