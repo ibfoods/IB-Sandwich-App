@@ -273,10 +273,7 @@ function HomeScreen({ onBuildYourOwn, onPremade }) {
     <div style={{ ...S.screen, alignItems:'center', justifyContent:'center', background:'var(--white)' }}>
       <div className="fade-up" style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:32, padding:40, width:'100%', maxWidth:480 }}>
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:12 }}>
-          <img src={MONOGRAM_URL} alt="IB" style={{ width:140, height:140, objectFit:'contain' }} onError={e => { e.target.style.display='none' }} />
-          <div style={{ fontFamily:"'Playfair Display', serif", fontSize:28, fontWeight:900, color:'var(--black)', textAlign:'center', lineHeight:1.2 }}>
-            Iavarone Bros.
-          </div>
+          <img src="/ib-script-logo.png" alt="Iavarone Bros." style={{ width:'90%', maxWidth:380, objectFit:'contain' }} onError={e => { e.target.style.display='none' }} />
           <div style={{ fontSize:14, color:'var(--gray)', fontWeight:500, textTransform:'uppercase', letterSpacing:2 }}>Sandwich Bar</div>
         </div>
         <div style={{ width:'100%', display:'flex', flexDirection:'column', gap:14 }}>
