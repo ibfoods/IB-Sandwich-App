@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { supabase } from './lib/supabase.js'
+import { sendOrderSMS } from './lib/sms.js'
 import {
   ALL_BREADS, ROLL_BREADS, isHeroBread,
   PROTEINS, PROTEIN_CATEGORIES,
@@ -722,6 +723,7 @@ export default function App() {
         total: calcTotal(order),
       }])
       if (error) console.error('Supabase insert error:', error)
+      else sendOrderSMS(orderNum, customer, order)
     } catch (e) {
       console.error('Supabase save error', e)
     }
