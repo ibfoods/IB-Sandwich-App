@@ -10,6 +10,7 @@ import {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const LOGO_URL = '/logo.jpg'
+const MONOGRAM_URL = '/monogram.svg'
 
 function genOrderNum() {
   return Math.floor(1000 + Math.random() * 9000).toString()
@@ -272,7 +273,7 @@ function HomeScreen({ onBuildYourOwn, onPremade }) {
     <div style={{ ...S.screen, alignItems:'center', justifyContent:'center', background:'var(--white)' }}>
       <div className="fade-up" style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:32, padding:40, width:'100%', maxWidth:480 }}>
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:12 }}>
-          <img src={LOGO_URL} alt="IB" style={{ width:120, height:120, objectFit:'contain' }} onError={e => { e.target.style.display='none' }} />
+          <img src={MONOGRAM_URL} alt="IB" style={{ width:140, height:140, objectFit:'contain' }} onError={e => { e.target.style.display='none' }} />
           <div style={{ fontFamily:"'Playfair Display', serif", fontSize:28, fontWeight:900, color:'var(--black)', textAlign:'center', lineHeight:1.2 }}>
             Iavarone Bros.
           </div>
