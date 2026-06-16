@@ -38,6 +38,14 @@ function calcTotal(order) {
 
 function fmtMoney(n) { return `$${n.toFixed(2)}` }
 
+function calcCartTotal(cart) {
+  return cart.reduce((sum, o) => sum + calcTotal(o), 0)
+}
+
+function genCartId() {
+  return 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+}
+
 function emptyOrder() {
   return {
     bread: '',
@@ -56,44 +64,16 @@ function emptyCustomer() {
 
 // ─── Print label ─────────────────────────────────────────────────────────────
 
-function printLabel(orderNum, customer, order) {
+function buildLabelHtml(orderNum, customer, order, sandwichIndex, sandwichTotal) {
   const hero = order.bread ? isHeroBread(order.bread) : false
   const total = calcTotal(order)
   const proteinLines = order.proteins.map(p => `<div class="item-line">${p}</div>`).join('')
   const cheeseLines = order.cheeses.map(c => `<div class="item-line">${c}</div>`).join('')
   const toppingLines = [...order.paidToppings, ...order.freeToppings].map(t => `<div class="mod-line">${t}</div>`).join('')
   const dressingLines = order.dressings.map(d => `<div class="mod-line">${d}</div>`).join('')
-  const win = window.open('', '_blank')
-  win.document.write(`<!DOCTYPE html><html><head><title>Order #${orderNum}</title>
-  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
-  <style>
-    @page { size: 4.25in 2.75in landscape; margin: 0; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; width: 4.25in; height: 2.75in; padding: 0.1in 0.13in; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
-    .top { display: flex; justify-content: space-between; align-items: center; }
-    .logo { width: 0.48in; height: 0.48in; object-fit: contain; }
-    .logo-area { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
-    .website { font-size: 5.5pt; color: #666; }
-    .customer-block { flex: 1; text-align: center; padding: 0 0.1in; }
-    .cust-lbl { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #555; }
-    .cust-name { font-size: 15pt; font-weight: 900; line-height: 1.1; }
-    .order-box { border: 2.5px solid #000; padding: 2px 8px; text-align: center; }
-    .order-lbl { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #444; }
-    .order-num { font-size: 34pt; font-weight: 900; line-height: 1; }
-    .middle { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 0.03in 0; flex: 1; display: flex; gap: 0.08in; }
-    .mid-left { flex: 1; }
-    .mid-right { flex: 1; }
-    .section-lbl { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 1px; }
-    .item-line { font-size: 8pt; font-weight: 700; line-height: 1.2; }
-    .mod-line { font-size: 7pt; line-height: 1.2; color: #333; }
-    .bread-line { font-size: 7pt; color: #555; margin-bottom: 2px; }
-    .notes-line { font-size: 7pt; font-style: italic; color: #444; margin-top: 2px; }
-    .footer { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 0.08in; padding-top: 0.04in; align-items: end; }
-    .footer-col .lbl { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; }
-    .footer-col .val { font-size: 9pt; font-weight: 600; margin-top: 1px; }
-    .barcode-cell { text-align: right; }
-    svg.barcode { height: 0.3in; }
-  </style></head><body>
+  const orderLabel = sandwichTotal > 1 ? `${orderNum}-${sandwichIndex + 1}` : orderNum
+  const orderSubLabel = sandwichTotal > 1 ? `Order (${sandwichIndex + 1}/${sandwichTotal})` : 'Order'
+  return `<div class="label-page">
     <div class="top">
       <div class="logo-area">
         <img src="${window.location.origin}${LOGO_URL}" class="logo" onerror="this.style.display='none'" />
@@ -104,8 +84,8 @@ function printLabel(orderNum, customer, order) {
         <div class="cust-name">${customer.firstName} ${customer.lastName}</div>
       </div>
       <div class="order-box">
-        <div class="order-lbl">Order</div>
-        <div class="order-num">${orderNum}</div>
+        <div class="order-lbl">${orderSubLabel}</div>
+        <div class="order-num">${orderLabel}</div>
       </div>
     </div>
     <div class="middle">
@@ -130,14 +110,55 @@ function printLabel(orderNum, customer, order) {
         <div class="val">${fmtMoney(total)}</div>
       </div>
       <div class="barcode-cell">
-        <svg class="barcode" id="bc"></svg>
+        <svg class="barcode" id="bc${sandwichIndex}"></svg>
       </div>
     </div>
+  </div>`
+}
+
+function printLabels(orderNum, customer, cart) {
+  const win = window.open('', '_blank')
+  const pages = cart.map((order, i) => buildLabelHtml(orderNum, customer, order, i, cart.length)).join('')
+  const barcodeCalls = cart.map((_, i) => {
+    const code = (cart.length > 1 ? `${orderNum}${i + 1}` : orderNum).padStart(12, '0').slice(0, 12)
+    return `try { JsBarcode("#bc${i}", "${code}", { format:"UPC", width:1.2, height:30, displayValue:false, margin:0 }); } catch(e) {}`
+  }).join('\n')
+
+  win.document.write(`<!DOCTYPE html><html><head><title>Order #${orderNum}</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
+  <style>
+    @page { size: 4.25in 2.75in landscape; margin: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; }
+    .label-page { width: 4.25in; height: 2.75in; padding: 0.1in 0.13in; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; page-break-after: always; }
+    .top { display: flex; justify-content: space-between; align-items: center; }
+    .logo { width: 0.48in; height: 0.48in; object-fit: contain; }
+    .logo-area { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+    .website { font-size: 5.5pt; color: #666; }
+    .customer-block { flex: 1; text-align: center; padding: 0 0.1in; }
+    .cust-lbl { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #555; }
+    .cust-name { font-size: 15pt; font-weight: 900; line-height: 1.1; }
+    .order-box { border: 2.5px solid #000; padding: 2px 8px; text-align: center; }
+    .order-lbl { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #444; }
+    .order-num { font-size: 34pt; font-weight: 900; line-height: 1; }
+    .middle { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 0.03in 0; flex: 1; display: flex; gap: 0.08in; }
+    .mid-left { flex: 1; }
+    .mid-right { flex: 1; }
+    .section-lbl { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 1px; }
+    .item-line { font-size: 8pt; font-weight: 700; line-height: 1.2; }
+    .mod-line { font-size: 7pt; line-height: 1.2; color: #333; }
+    .bread-line { font-size: 7pt; color: #555; margin-bottom: 2px; }
+    .notes-line { font-size: 7pt; font-style: italic; color: #444; margin-top: 2px; }
+    .footer { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 0.08in; padding-top: 0.04in; align-items: end; }
+    .footer-col .lbl { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; }
+    .footer-col .val { font-size: 9pt; font-weight: 600; margin-top: 1px; }
+    .barcode-cell { text-align: right; }
+    svg.barcode { height: 0.3in; }
+  </style></head><body>
+    ${pages}
     <script>
       window.onload = function() {
-        try {
-          JsBarcode("#bc", "${orderNum.padStart(12,'0')}", { format:"UPC", width:1.2, height:30, displayValue:false, margin:0 });
-        } catch(e) {}
+        ${barcodeCalls}
         var imgs = document.querySelectorAll('img');
         var loaded = 0;
         function tryPrint() { loaded++; if(loaded >= imgs.length) window.print(); }
@@ -218,9 +239,8 @@ function CategorySection({ title, children }) {
   )
 }
 
-function OrderSummaryCard({ order, customer, orderNum }) {
+function SandwichSummaryRows({ order }) {
   const hero = order.bread ? isHeroBread(order.bread) : false
-  const total = calcTotal(order)
   const rows = []
   if (order.bread) rows.push({ label: 'Bread', value: order.bread })
   if (order.proteins.length) rows.push({ label: 'Protein', value: order.proteins.join(', ') })
@@ -236,6 +256,21 @@ function OrderSummaryCard({ order, customer, orderNum }) {
   if (order.dressings.length) rows.push({ label: 'Dressings', value: order.dressings.join(', ') })
   if (order.notes) rows.push({ label: 'Notes', value: order.notes })
   return (
+    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+      {rows.map((r, i) => (
+        <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:8 }}>
+          <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:0.8, color:'var(--gray)', minWidth:72 }}>{r.label}</div>
+          <div style={{ flex:1, fontSize:14, fontWeight:500, textAlign:'right' }}>{r.value}</div>
+          {r.sub && <div style={{ fontSize:14, fontWeight:700, color:'var(--red)', minWidth:44, textAlign:'right' }}>{r.sub}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function OrderSummaryCard({ cart, customer, orderNum, onEditSandwich, onRemoveSandwich }) {
+  const total = calcCartTotal(cart)
+  return (
     <div style={{ ...S.card, padding:20 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
         <div>
@@ -249,17 +284,33 @@ function OrderSummaryCard({ order, customer, orderNum }) {
           </div>
         )}
       </div>
-      <div style={{ borderTop:'1px solid var(--gray-light)', paddingTop:12, display:'flex', flexDirection:'column', gap:10 }}>
-        {rows.map((r, i) => (
-          <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:8 }}>
-            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:0.8, color:'var(--gray)', minWidth:72 }}>{r.label}</div>
-            <div style={{ flex:1, fontSize:14, fontWeight:500, textAlign:'right' }}>{r.value}</div>
-            {r.sub && <div style={{ fontSize:14, fontWeight:700, color:'var(--red)', minWidth:44, textAlign:'right' }}>{r.sub}</div>}
+      {cart.map((order, i) => (
+        <div key={i} style={{ borderTop:'1px solid var(--gray-light)', paddingTop:12, marginBottom:12 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+            <div style={{ fontSize:13, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, color:'var(--black)' }}>
+              Sandwich {i + 1}
+            </div>
+            <div style={{ display:'flex', gap:10 }}>
+              {onEditSandwich && (
+                <button onClick={() => onEditSandwich(i)} style={{ background:'none', border:'none', color:'var(--gray)', fontSize:13, textDecoration:'underline', cursor:'pointer', padding:0 }}>
+                  Edit
+                </button>
+              )}
+              {onRemoveSandwich && cart.length > 1 && (
+                <button onClick={() => onRemoveSandwich(i)} style={{ background:'none', border:'none', color:'var(--red)', fontSize:13, textDecoration:'underline', cursor:'pointer', padding:0 }}>
+                  Remove
+                </button>
+              )}
+            </div>
           </div>
-        ))}
-      </div>
-      <div style={{ borderTop:'2px solid var(--black)', marginTop:12, paddingTop:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ fontSize:14, fontWeight:700, textTransform:'uppercase', letterSpacing:1 }}>Total</div>
+          <SandwichSummaryRows order={order} />
+          <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8, fontSize:13, fontWeight:700, color:'var(--gray-dark)' }}>
+            {fmtMoney(calcTotal(order))}
+          </div>
+        </div>
+      ))}
+      <div style={{ borderTop:'2px solid var(--black)', marginTop:4, paddingTop:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ fontSize:14, fontWeight:700, textTransform:'uppercase', letterSpacing:1 }}>Total ({cart.length} {cart.length === 1 ? 'sandwich' : 'sandwiches'})</div>
         <div style={{ fontFamily:"'Playfair Display', serif", fontSize:24, fontWeight:900 }}>{fmtMoney(total)}</div>
       </div>
     </div>
@@ -574,7 +625,7 @@ function ToppingsScreen({ onBack, onNext, bread, initial }) {
 }
 
 // 7. Notes
-function NotesScreen({ onBack, onNext, initial }) {
+function NotesScreen({ onBack, onNext, initial, cartCount }) {
   const [notes, setNotes] = useState(initial || '')
   return (
     <div style={S.screen}>
@@ -603,12 +654,20 @@ function NotesScreen({ onBack, onNext, initial }) {
         />
       </div>
       <div style={S.footer}>
-        <div style={{ display:'flex', gap:12 }}>
-          <button style={{ ...S.secondaryBtn, flex:'0 0 auto', width:'auto', padding:'16px 24px' }} onClick={() => onNext('')}>
-            Skip
-          </button>
-          <button style={{ ...S.primaryBtn(false), flex:1 }} onClick={() => onNext(notes)}>
-            Review Order →
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          <div style={{ display:'flex', gap:12 }}>
+            <button style={{ ...S.secondaryBtn, flex:'0 0 auto', width:'auto', padding:'16px 24px' }} onClick={() => onNext(notes, 'review')}>
+              Skip
+            </button>
+            <button style={{ ...S.primaryBtn(false), flex:1 }} onClick={() => onNext(notes, 'review')}>
+              {cartCount > 0 ? `Review Order (${cartCount + 1}) →` : 'Review Order →'}
+            </button>
+          </div>
+          <button
+            style={{ background:'none', border:'2px solid var(--gray-light)', borderRadius:'var(--radius)', padding:'14px', fontSize:15, fontWeight:700, color:'var(--black)', cursor:'pointer' }}
+            onClick={() => onNext(notes, 'addAnother')}
+          >
+            ➕ Add Another Sandwich
           </button>
         </div>
       </div>
@@ -617,7 +676,7 @@ function NotesScreen({ onBack, onNext, initial }) {
 }
 
 // 8. Review & Confirm
-function ReviewScreen({ onBack, onConfirm, onEdit, order, customer, orderNum, saving }) {
+function ReviewScreen({ onBack, onConfirm, onAddAnother, onEditSandwich, onRemoveSandwich, cart, customer, orderNum, saving }) {
   return (
     <div style={S.screen}>
       <div style={S.header}>
@@ -625,17 +684,17 @@ function ReviewScreen({ onBack, onConfirm, onEdit, order, customer, orderNum, sa
         <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>Review Order</div>
       </div>
       <div style={S.body}>
-        <OrderSummaryCard order={order} customer={customer} orderNum={orderNum} />
+        <OrderSummaryCard cart={cart} customer={customer} orderNum={orderNum} onEditSandwich={onEditSandwich} onRemoveSandwich={onRemoveSandwich} />
         <button
-          onClick={onEdit}
-          style={{ background:'none', border:'none', color:'var(--gray)', fontSize:14, textDecoration:'underline', textAlign:'center', padding:8 }}
+          onClick={onAddAnother}
+          style={{ background:'none', border:'2px solid var(--gray-light)', borderRadius:'var(--radius)', padding:'14px', fontSize:15, fontWeight:700, color:'var(--black)', cursor:'pointer' }}
         >
-          Edit order
+          ➕ Add Another Sandwich
         </button>
       </div>
       <div style={S.footer}>
         <button style={S.primaryBtn(saving)} disabled={saving} onClick={onConfirm}>
-          {saving ? 'Placing Order...' : `Confirm Order · ${fmtMoney(calcTotal(order))}`}
+          {saving ? 'Placing Order...' : `Confirm Order · ${fmtMoney(calcCartTotal(cart))}`}
         </button>
       </div>
     </div>
@@ -643,7 +702,8 @@ function ReviewScreen({ onBack, onConfirm, onEdit, order, customer, orderNum, sa
 }
 
 // 9. Confirmation
-function ConfirmationScreen({ order, customer, orderNum, onNewOrder, onDuplicate }) {
+function ConfirmationScreen({ cart, customer, orderNum, onNewOrder, onDuplicate }) {
+  const total = calcCartTotal(cart)
   return (
     <div style={S.screen}>
       <div style={{ ...S.body, justifyContent:'center', alignItems:'center', gap:24 }}>
@@ -656,13 +716,14 @@ function ConfirmationScreen({ order, customer, orderNum, onNewOrder, onDuplicate
           <div style={{ fontSize:13, color:'var(--gray)', fontWeight:600, textTransform:'uppercase', letterSpacing:1 }}>Order Number</div>
           <div style={{ fontFamily:"'Playfair Display', serif", fontSize:64, fontWeight:900, color:'var(--red)', lineHeight:1 }}>#{orderNum}</div>
           <div style={{ fontSize:16, fontWeight:700, marginTop:4 }}>{customer.firstName} {customer.lastName}</div>
+          <div style={{ fontSize:13, color:'var(--gray)', marginTop:6 }}>{cart.length} {cart.length === 1 ? 'sandwich' : 'sandwiches'} · {fmtMoney(total)}</div>
         </div>
         <div className="fade-up" style={{ width:'100%', maxWidth:400, display:'flex', flexDirection:'column', gap:12, animationDelay:'0.2s' }}>
           <button
-            onClick={() => { printLabel(orderNum, customer, order) }}
+            onClick={() => { printLabels(orderNum, customer, cart) }}
             style={{ ...S.secondaryBtn }}
           >
-            Print Label
+            {cart.length > 1 ? `Print Labels (${cart.length})` : 'Print Label'}
           </button>
           <button
             onClick={onDuplicate}
@@ -686,44 +747,68 @@ const STEPS = ['home', 'customer', 'bread', 'protein', 'cheese', 'toppings', 'no
 export default function App() {
   const [screen, setScreen] = useState('home')
   const [customer, setCustomer] = useState(emptyCustomer())
-  const [order, setOrder] = useState(emptyOrder())
+  const [order, setOrder] = useState(emptyOrder())   // sandwich currently being built/edited
+  const [cart, setCart] = useState([])               // sandwiches already added in this order
+  const [editingIndex, setEditingIndex] = useState(null) // index in cart being edited, or null if building a new one
   const [orderNum, setOrderNum] = useState('')
+  const [cartId, setCartId] = useState('')
   const [saving, setSaving] = useState(false)
 
   const startNew = useCallback((prefill = null) => {
-    setOrder(prefill || emptyOrder())
+    setCart(prefill ? [prefill] : [])
+    setOrder(emptyOrder())
+    setEditingIndex(null)
     setCustomer(emptyCustomer())
     setOrderNum(genOrderNum())
+    setCartId(genCartId())
     setScreen('customer')
   }, [])
 
   const startDuplicate = useCallback(() => {
-    // Keep same order, reset customer, generate new order number
+    // Keep same sandwiches, reset customer, generate new order number + cart id
     setCustomer(emptyCustomer())
     setOrderNum(genOrderNum())
+    setCartId(genCartId())
     setScreen('customer')
   }, [])
+
+  // Commit the sandwich currently in `order` into the cart (either appended or replacing editingIndex)
+  const commitSandwichToCart = useCallback((finalOrder) => {
+    setCart(c => {
+      if (editingIndex !== null) {
+        const copy = [...c]
+        copy[editingIndex] = finalOrder
+        return copy
+      }
+      return [...c, finalOrder]
+    })
+    setEditingIndex(null)
+  }, [editingIndex])
 
   const saveOrder = async () => {
     setSaving(true)
     try {
-      const { error } = await supabase.from('sandwich_orders').insert([{
+      const rows = cart.map((sw, i) => ({
         order_number: orderNum,
+        cart_id: cartId,
+        item_index: i,
+        item_count: cart.length,
         first_name: customer.firstName,
         last_name: customer.lastName,
         phone: customer.phone,
         email: customer.email || null,
-        bread: order.bread,
-        proteins: order.proteins,
-        cheeses: order.cheeses,
-        paid_toppings: order.paidToppings,
-        free_toppings: order.freeToppings,
-        dressings: order.dressings,
-        notes: order.notes || null,
-        total: calcTotal(order),
-      }])
+        bread: sw.bread,
+        proteins: sw.proteins,
+        cheeses: sw.cheeses,
+        paid_toppings: sw.paidToppings,
+        free_toppings: sw.freeToppings,
+        dressings: sw.dressings,
+        notes: sw.notes || null,
+        total: calcTotal(sw),
+      }))
+      const { error } = await supabase.from('sandwich_orders').insert(rows)
       if (error) console.error('Supabase insert error:', error)
-      else sendOrderSMS(orderNum, customer, order)
+      else sendOrderSMS(orderNum, customer, cart)
     } catch (e) {
       console.error('Supabase save error', e)
     }
@@ -731,8 +816,8 @@ export default function App() {
     setScreen('confirm')
   }
 
-  // Initialize order number on mount
-  React.useEffect(() => { setOrderNum(genOrderNum()) }, [])
+  // Initialize order number / cart id on mount
+  React.useEffect(() => { setOrderNum(genOrderNum()); setCartId(genCartId()) }, [])
 
   if (screen === 'home') return <HomeScreen onBuildYourOwn={() => setScreen('customer')} onPremade={() => {}} />
 
@@ -747,8 +832,8 @@ export default function App() {
   if (screen === 'bread') return (
     <BreadScreen
       initial={order.bread}
-      onBack={() => setScreen('customer')}
-      onNext={(b) => { setOrder(o => ({ ...o, bread: b, proteins: [], cheeses: [] })); setScreen('protein') }}
+      onBack={() => setScreen(cart.length ? 'review' : 'customer')}
+      onNext={(b) => { setOrder(o => ({ ...o, bread: b, proteins: o.bread === b ? o.proteins : [], cheeses: o.bread === b ? o.cheeses : [] })); setScreen('protein') }}
     />
   )
 
@@ -782,29 +867,41 @@ export default function App() {
   if (screen === 'notes') return (
     <NotesScreen
       initial={order.notes}
+      cartCount={cart.length}
       onBack={() => setScreen('toppings')}
-      onNext={(n) => { setOrder(o => ({ ...o, notes: n })); setScreen('review') }}
+      onNext={(n, action) => {
+        const finalOrder = { ...order, notes: n }
+        commitSandwichToCart(finalOrder)
+        setOrder(emptyOrder())
+        if (action === 'addAnother') {
+          setScreen('bread')
+        } else {
+          setScreen('review')
+        }
+      }}
     />
   )
 
   if (screen === 'review') return (
     <ReviewScreen
-      order={order}
+      cart={cart}
       customer={customer}
       orderNum={orderNum}
       saving={saving}
       onBack={() => setScreen('notes')}
-      onEdit={() => setScreen('bread')}
+      onAddAnother={() => { setOrder(emptyOrder()); setEditingIndex(null); setScreen('bread') }}
+      onEditSandwich={(i) => { setOrder(cart[i]); setEditingIndex(i); setScreen('bread') }}
+      onRemoveSandwich={(i) => setCart(c => c.filter((_, idx) => idx !== i))}
       onConfirm={saveOrder}
     />
   )
 
   if (screen === 'confirm') return (
     <ConfirmationScreen
-      order={order}
+      cart={cart}
       customer={customer}
       orderNum={orderNum}
-      onNewOrder={() => { setOrder(emptyOrder()); setScreen('home') }}
+      onNewOrder={() => { setCart([]); setOrder(emptyOrder()); setEditingIndex(null); setScreen('home') }}
       onDuplicate={startDuplicate}
     />
   )

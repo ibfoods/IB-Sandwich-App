@@ -16,20 +16,29 @@ const AUTH_TOKEN = import.meta.env.VITE_TWILIO_AUTH_TOKEN || ''
 const FROM_NUMBER = import.meta.env.VITE_TWILIO_FROM_NUMBER || ''
 const NOTIFY_PHONE = import.meta.env.VITE_NOTIFY_PHONE || ''
 
-export async function sendOrderSMS(orderNum, customer, order) {
+export async function sendOrderSMS(orderNum, customer, cart) {
   if (!SMS_ENABLED) return // Not activated yet
 
-  const hero = order.bread ? order.bread : ''
-  const proteins = order.proteins.join(', ')
+  const sandwiches = Array.isArray(cart) ? cart : [cart] // back-compat if called with a single order
+
+  const sandwichBlocks = sandwiches.map((order, i) => {
+    const hero = order.bread || ''
+    const proteins = order.proteins.join(', ')
+    return [
+      sandwiches.length > 1 ? `— Sandwich ${i + 1} —` : null,
+      `${hero} · ${proteins}`,
+      order.cheeses.length ? `Cheese: ${order.cheeses.join(', ')}` : null,
+      order.paidToppings.length ? `Add-ons: ${order.paidToppings.join(', ')}` : null,
+      order.freeToppings.length ? `Toppings: ${order.freeToppings.join(', ')}` : null,
+      order.dressings.length ? `Dressing: ${order.dressings.join(', ')}` : null,
+      order.notes ? `Note: ${order.notes}` : null,
+    ].filter(Boolean).join('\n')
+  }).join('\n')
+
   const message = [
-    `🥖 New Order #${orderNum}`,
+    `🥖 New Order #${orderNum}${sandwiches.length > 1 ? ` (${sandwiches.length} sandwiches)` : ''}`,
     `${customer.firstName} ${customer.lastName} · ${customer.phone}`,
-    `${hero} · ${proteins}`,
-    order.cheeses.length ? `Cheese: ${order.cheeses.join(', ')}` : null,
-    order.paidToppings.length ? `Add-ons: ${order.paidToppings.join(', ')}` : null,
-    order.freeToppings.length ? `Toppings: ${order.freeToppings.join(', ')}` : null,
-    order.dressings.length ? `Dressing: ${order.dressings.join(', ')}` : null,
-    order.notes ? `Note: ${order.notes}` : null,
+    sandwichBlocks,
   ].filter(Boolean).join('\n')
 
   try {
