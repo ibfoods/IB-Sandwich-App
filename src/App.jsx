@@ -183,7 +183,7 @@ function printLabels(orderNum, customer, cart) {
 // ─── Shared UI components ────────────────────────────────────────────────────
 
 const S = {
-  screen: { position:'fixed', inset:0, background:'var(--bg)', display:'grid', gridTemplateRows:'auto minmax(0,1fr) auto', overflow:'hidden' },
+  screen: { position:'fixed', top:0, left:0, width:'100%', height:'100dvh', background:'var(--bg)', display:'grid', gridTemplateRows:'auto minmax(0,1fr) auto', overflow:'hidden' },
   header: { background:'var(--white)', borderBottom:'1px solid var(--gray-light)', padding:'calc(16px + env(safe-area-inset-top)) 20px 16px 20px', display:'flex', alignItems:'center', gap:12 },
   body: { minHeight:0, overflowY:'scroll', WebkitOverflowScrolling:'touch', overscrollBehaviorY:'contain', transform:'translateZ(0)', WebkitTransform:'translateZ(0)', willChange:'scroll-position', padding:'20px', display:'flex', flexDirection:'column', gap:16 },
   footer: { background:'var(--white)', borderTop:'1px solid var(--gray-light)', padding:'16px 20px calc(16px + env(safe-area-inset-bottom)) 20px' },
@@ -740,7 +740,7 @@ function ReviewScreen({ onBack, onConfirm, onAddAnother, onEditSandwich, onRemov
       <div style={S.header}>
         <button style={S.backBtn} onClick={onBack}>←</button>
         <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>Review Order</div>
-        <div style={{ fontSize:10, color:'var(--gray-light)', marginLeft:'auto' }}>build v-scroll-5</div>
+        <div style={{ fontSize:10, color:'var(--gray-light)', marginLeft:'auto' }}>build v-scroll-6</div>
       </div>
       <div style={S.body}>
         <OrderSummaryCard cart={cart} customer={customer} orderNum={orderNum} onEditSandwich={onEditSandwich} onRemoveSandwich={onRemoveSandwich} onDuplicateSandwich={onDuplicateSandwich} onEditCustomer={onEditCustomer} />
