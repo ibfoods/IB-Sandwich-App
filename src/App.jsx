@@ -670,9 +670,10 @@ function ToppingsScreen({ onBack, onNext, bread, initial }) {
 }
 
 // 7. Notes
-function NotesScreen({ onBack, onNext, initial, initialLabelName, cartCount }) {
+function NotesScreen({ onBack, onNext, initial, initialLabelName, cartCount, isEditing }) {
   const [notes, setNotes] = useState(initial || '')
   const [labelName, setLabelName] = useState(initialLabelName || '')
+  const displayCount = isEditing ? cartCount : cartCount + 1
   const labelStyle = { fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:1, color:'var(--gray)', marginBottom:6, display:'block' }
   return (
     <div style={S.screen}>
@@ -717,7 +718,7 @@ function NotesScreen({ onBack, onNext, initial, initialLabelName, cartCount }) {
               Skip
             </button>
             <button style={{ ...S.primaryBtn(false), flex:1 }} onClick={() => onNext(notes, labelName, 'review')}>
-              {cartCount > 0 ? `Review Order (${cartCount + 1}) →` : 'Review Order →'}
+              {cartCount > 0 ? `Review Order (${displayCount}) →` : 'Review Order →'}
             </button>
           </div>
           <button
@@ -930,6 +931,7 @@ export default function App() {
       initial={order.notes}
       initialLabelName={order.labelName}
       cartCount={cart.length}
+      isEditing={editingIndex !== null}
       onBack={() => setScreen('toppings')}
       onNext={(n, labelName, action) => {
         const finalOrder = { ...order, notes: n, labelName }
