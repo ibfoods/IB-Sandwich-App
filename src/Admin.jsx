@@ -30,11 +30,12 @@ function Login({ onLogin }) {
     const { data, error } = await supabase
       .from('sandwich_admin_users')
       .select('*')
-      .eq('username', username)
-      .eq('password', password)
+      .eq('username', username.trim())
+      .eq('password', password.trim())
       .maybeSingle()
     setBusy(false)
-    if (error || !data) { setErr('Invalid username or password.'); return }
+    if (error) { setErr(`Login error: ${error.message}`); return }
+    if (!data) { setErr('Invalid username or password.'); return }
     onLogin(data)
   }
 
