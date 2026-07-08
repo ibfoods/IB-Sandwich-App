@@ -187,7 +187,7 @@ const S = {
   header: { background:'var(--white)', borderBottom:'1px solid var(--gray-light)', padding:'calc(16px + env(safe-area-inset-top)) 20px 16px 20px', display:'flex', alignItems:'center', gap:12 },
   body: { minHeight:0, overflowY:'scroll', WebkitOverflowScrolling:'touch', overscrollBehaviorY:'contain', transform:'translateZ(0)', WebkitTransform:'translateZ(0)', willChange:'scroll-position', padding:'20px', display:'flex', flexDirection:'column', gap:16 },
   footer: { background:'var(--white)', borderTop:'1px solid var(--gray-light)', padding:'16px 20px calc(16px + env(safe-area-inset-bottom)) 20px' },
-  card: { background:'var(--white)', borderRadius:'var(--radius)', boxShadow:'var(--shadow-sm)', overflow:'hidden' },
+  card: { background:'var(--white)', borderRadius:'var(--radius)', boxShadow:'var(--shadow-sm)', overflow:'hidden', flexShrink:0 },
   sectionTitle: { fontFamily:"'Playfair Display', serif", fontSize:22, fontWeight:700, color:'var(--black)', marginBottom:4 },
   sectionSub: { fontSize:13, color:'var(--gray)', marginBottom:16 },
   chip: (active) => ({
@@ -282,7 +282,7 @@ function SandwichSummaryRows({ order }) {
 function OrderSummaryCard({ cart, customer, orderNum, onEditSandwich, onRemoveSandwich, onDuplicateSandwich, onEditCustomer }) {
   const total = calcCartTotal(cart)
   return (
-    <div style={{ ...S.card, padding:20 }}>
+    <div style={{ ...S.card, padding:20, flexShrink:0 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
         <div>
           <div style={{ fontSize:12, color:'var(--gray)', fontWeight:600, textTransform:'uppercase', letterSpacing:1 }}>Order</div>
@@ -740,7 +740,7 @@ function ReviewScreen({ onBack, onConfirm, onAddAnother, onEditSandwich, onRemov
       <div style={S.header}>
         <button style={S.backBtn} onClick={onBack}>←</button>
         <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>Review Order</div>
-        <div style={{ fontSize:10, color:'var(--gray-light)', marginLeft:'auto' }}>build v-scroll-6</div>
+        <div style={{ fontSize:10, color:'var(--gray-light)', marginLeft:'auto' }}>build v-scroll-7</div>
       </div>
       <div style={S.body}>
         <OrderSummaryCard cart={cart} customer={customer} orderNum={orderNum} onEditSandwich={onEditSandwich} onRemoveSandwich={onRemoveSandwich} onDuplicateSandwich={onDuplicateSandwich} onEditCustomer={onEditCustomer} />
