@@ -26,7 +26,10 @@ function calcTotal(order) {
     const found = PROTEINS.find(pr => pr.name === p)
     return found ? (hero ? (found.hero || 0) : (found.roll || 0)) : 0
   })
-  if (proteinPrices.length) total += Math.max(...proteinPrices)
+  if (proteinPrices.length) {
+    const base = Math.max(...proteinPrices)
+    total += order.doubleMeat ? base * 1.5 : base
+  }
   const cp = hero ? 2.00 : 1.50
   total += order.cheeses.length * cp
   order.paidToppings.forEach(t => {
@@ -55,11 +58,13 @@ function emptyOrder() {
     freeToppings: [],
     dressings: [],
     notes: '',
+    doubleMeat: false,
+    labelName: '',
   }
 }
 
 function emptyCustomer() {
-  return { firstName: '', lastName: '', phone: '', email: '' }
+  return { firstName: '', lastName: '', phone: '', email: '', smsOptIn: false }
 }
 
 // ─── Print label ─────────────────────────────────────────────────────────────
@@ -67,12 +72,13 @@ function emptyCustomer() {
 function buildLabelHtml(orderNum, customer, order, sandwichIndex, sandwichTotal) {
   const hero = order.bread ? isHeroBread(order.bread) : false
   const total = calcTotal(order)
-  const proteinLines = order.proteins.map(p => `<div class="item-line">${p}</div>`).join('')
+  const proteinLines = order.proteins.map(p => `<div class="item-line">${p}${order.doubleMeat ? ' (2x)' : ''}</div>`).join('')
   const cheeseLines = order.cheeses.map(c => `<div class="item-line">${c}</div>`).join('')
   const toppingLines = [...order.paidToppings, ...order.freeToppings].map(t => `<div class="mod-line">${t}</div>`).join('')
   const dressingLines = order.dressings.map(d => `<div class="mod-line">${d}</div>`).join('')
   const orderLabel = sandwichTotal > 1 ? `${orderNum}-${sandwichIndex + 1}` : orderNum
   const orderSubLabel = sandwichTotal > 1 ? `Order (${sandwichIndex + 1}/${sandwichTotal})` : 'Order'
+  const sandwichTag = order.labelName ? `${order.labelName}'s Sandwich` : ''
   return `<div class="label-page">
     <div class="top">
       <div class="logo-area">
@@ -82,10 +88,12 @@ function buildLabelHtml(orderNum, customer, order, sandwichIndex, sandwichTotal)
       <div class="customer-block">
         <div class="cust-lbl">Customer</div>
         <div class="cust-name">${customer.firstName} ${customer.lastName}</div>
+        ${sandwichTag ? `<div class="sandwich-tag">${sandwichTag}</div>` : ''}
       </div>
       <div class="order-box">
         <div class="order-lbl">${orderSubLabel}</div>
         <div class="order-num">${orderLabel}</div>
+        ${order.doubleMeat ? '<div class="dbl-meat-flag">DOUBLE MEAT</div>' : ''}
       </div>
     </div>
     <div class="middle">
@@ -138,9 +146,11 @@ function printLabels(orderNum, customer, cart) {
     .customer-block { flex: 1; text-align: center; padding: 0 0.1in; }
     .cust-lbl { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #555; }
     .cust-name { font-size: 15pt; font-weight: 900; line-height: 1.1; }
+    .sandwich-tag { font-size: 8pt; font-weight: 700; color: #C9973A; margin-top: 1px; }
     .order-box { border: 2.5px solid #000; padding: 2px 8px; text-align: center; }
     .order-lbl { font-size: 6pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #444; }
     .order-num { font-size: 34pt; font-weight: 900; line-height: 1; }
+    .dbl-meat-flag { font-size: 7pt; font-weight: 900; color: #8B1A2B; letter-spacing: 0.5px; margin-top: 1px; }
     .middle { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 0.03in 0; flex: 1; display: flex; gap: 0.08in; }
     .mid-left { flex: 1; }
     .mid-right { flex: 1; }
@@ -175,7 +185,7 @@ function printLabels(orderNum, customer, cart) {
 const S = {
   screen: { position:'fixed', inset:0, background:'var(--bg)', display:'flex', flexDirection:'column', overflow:'hidden' },
   header: { background:'var(--white)', borderBottom:'1px solid var(--gray-light)', padding:'16px 20px', display:'flex', alignItems:'center', gap:12, flexShrink:0 },
-  body: { flex:1, overflowY:'auto', padding:'20px', display:'flex', flexDirection:'column', gap:16 },
+  body: { flex:1, minHeight:0, overflowY:'auto', WebkitOverflowScrolling:'touch', overscrollBehaviorY:'contain', padding:'20px', display:'flex', flexDirection:'column', gap:16 },
   footer: { background:'var(--white)', borderTop:'1px solid var(--gray-light)', padding:'16px 20px', flexShrink:0 },
   card: { background:'var(--white)', borderRadius:'var(--radius)', boxShadow:'var(--shadow-sm)', overflow:'hidden' },
   sectionTitle: { fontFamily:"'Playfair Display', serif", fontSize:22, fontWeight:700, color:'var(--black)', marginBottom:4 },
@@ -242,8 +252,9 @@ function CategorySection({ title, children }) {
 function SandwichSummaryRows({ order }) {
   const hero = order.bread ? isHeroBread(order.bread) : false
   const rows = []
+  if (order.labelName) rows.push({ label: 'Label', value: `${order.labelName}'s Sandwich` })
   if (order.bread) rows.push({ label: 'Bread', value: order.bread })
-  if (order.proteins.length) rows.push({ label: 'Protein', value: order.proteins.join(', ') })
+  if (order.proteins.length) rows.push({ label: 'Protein', value: order.proteins.join(', ') + (order.doubleMeat ? ' — Double Meat' : '') })
   if (order.cheeses.length) rows.push({ label: 'Cheese', value: order.cheeses.join(', '), sub: `${fmtMoney(order.cheeses.length * cheesePrices(order.bread))}` })
   if (order.paidToppings.length) {
     const pTotal = order.paidToppings.reduce((sum, t) => {
@@ -268,7 +279,7 @@ function SandwichSummaryRows({ order }) {
   )
 }
 
-function OrderSummaryCard({ cart, customer, orderNum, onEditSandwich, onRemoveSandwich }) {
+function OrderSummaryCard({ cart, customer, orderNum, onEditSandwich, onRemoveSandwich, onDuplicateSandwich, onEditCustomer }) {
   const total = calcCartTotal(cart)
   return (
     <div style={{ ...S.card, padding:20 }}>
@@ -281,6 +292,11 @@ function OrderSummaryCard({ cart, customer, orderNum, onEditSandwich, onRemoveSa
           <div style={{ textAlign:'right' }}>
             <div style={{ fontSize:16, fontWeight:700 }}>{customer.firstName} {customer.lastName}</div>
             <div style={{ fontSize:13, color:'var(--gray)' }}>{customer.phone}</div>
+            {onEditCustomer && (
+              <button onClick={onEditCustomer} style={{ background:'none', border:'none', color:'var(--gray)', fontSize:12, textDecoration:'underline', cursor:'pointer', padding:0, marginTop:2 }}>
+                Edit Info
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -294,6 +310,11 @@ function OrderSummaryCard({ cart, customer, orderNum, onEditSandwich, onRemoveSa
               {onEditSandwich && (
                 <button onClick={() => onEditSandwich(i)} style={{ background:'none', border:'none', color:'var(--gray)', fontSize:13, textDecoration:'underline', cursor:'pointer', padding:0 }}>
                   Edit
+                </button>
+              )}
+              {onDuplicateSandwich && (
+                <button onClick={() => onDuplicateSandwich(i)} style={{ background:'none', border:'none', color:'var(--gold)', fontSize:13, textDecoration:'underline', cursor:'pointer', padding:0 }}>
+                  Duplicate
                 </button>
               )}
               {onRemoveSandwich && cart.length > 1 && (
@@ -351,7 +372,7 @@ function HomeScreen({ onBuildYourOwn, onPremade }) {
 }
 
 // 2. Customer Info
-function CustomerInfoScreen({ onBack, onNext, initial }) {
+function CustomerInfoScreen({ onBack, onNext, initial, editMode }) {
   const [form, setForm] = useState(initial || emptyCustomer())
   const valid = form.firstName.trim() && form.lastName.trim() && form.phone.trim().replace(/\D/g,'').length >= 10
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -364,8 +385,8 @@ function CustomerInfoScreen({ onBack, onNext, initial }) {
       <div style={S.header}>
         <button style={S.backBtn} onClick={onBack}>←</button>
         <div style={{ flex:1 }}>
-          <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>Your Info</div>
-          <ProgressBar step={1} total={6} />
+          <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>{editMode ? 'Edit Your Info' : 'Your Info'}</div>
+          {!editMode && <ProgressBar step={1} total={6} />}
         </div>
       </div>
       <div style={S.body}>
@@ -398,10 +419,17 @@ function CustomerInfoScreen({ onBack, onNext, initial }) {
           <label style={labelStyle}>Email <span style={{ color:'var(--gray)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>(optional)</span></label>
           <input style={inputStyle} value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@example.com" type="email" autoCapitalize="none" />
         </div>
+        <label style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'12px 14px', borderRadius:12, border:'2px solid var(--gray-light)', cursor:'pointer' }}>
+          <input type="checkbox" checked={!!form.smsOptIn} onChange={e => set('smsOptIn', e.target.checked)} style={{ width:20, height:20, marginTop:2, flexShrink:0 }} />
+          <span style={{ fontSize:13, lineHeight:1.5 }}>
+            <strong>Text me my order confirmation</strong> and occasional promos from Iavarone Bros.
+            <span style={{ display:'block', color:'var(--gray)', fontWeight:400, marginTop:2 }}>Msg &amp; data rates may apply. Reply STOP to opt out anytime.</span>
+          </span>
+        </label>
       </div>
       <div style={S.footer}>
         <button style={S.primaryBtn(!valid)} disabled={!valid} onClick={() => onNext(form)}>
-          Continue to Bread →
+          {editMode ? 'Save Info' : 'Continue to Bread →'}
         </button>
       </div>
     </div>
@@ -453,8 +481,9 @@ function BreadScreen({ onBack, onNext, initial }) {
 }
 
 // 4. Protein
-function ProteinScreen({ onBack, onNext, bread, initial }) {
+function ProteinScreen({ onBack, onNext, bread, initial, initialDoubleMeat }) {
   const [selected, setSelected] = useState(initial || [])
+  const [doubleMeat, setDoubleMeat] = useState(!!initialDoubleMeat)
   const hero = isHeroBread(bread)
   const MAX = 4
 
@@ -463,6 +492,13 @@ function ProteinScreen({ onBack, onNext, bread, initial }) {
     if (hero === false && p.roll === null) return // hero-only, can't pick on roll
     setSelected(s => s.includes(name) ? s.filter(x => x !== name) : s.length < MAX ? [...s, name] : s)
   }
+
+  const basePrice = selected.length
+    ? Math.max(...selected.map(name => {
+        const p = PROTEINS.find(pr => pr.name === name)
+        return p ? (hero ? p.hero : (p.roll || 0)) : 0
+      }))
+    : 0
 
   return (
     <div style={S.screen}>
@@ -495,9 +531,16 @@ function ProteinScreen({ onBack, onNext, bread, initial }) {
             })}
           </CategorySection>
         ))}
+        {!!selected.length && (
+          <label className="fade-in" style={{ display:'flex', alignItems:'center', gap:10, padding:'14px 16px', borderRadius:12, border:`2px solid ${doubleMeat ? 'var(--red)' : 'var(--gray-light)'}`, background: doubleMeat ? 'var(--red-light)' : 'var(--white)', cursor:'pointer' }}>
+            <input type="checkbox" checked={doubleMeat} onChange={e => setDoubleMeat(e.target.checked)} style={{ width:20, height:20, flexShrink:0 }} />
+            <span style={{ flex:1, fontSize:15, fontWeight:700 }}>Double Meat</span>
+            <span style={{ fontSize:14, fontWeight:700, color:'var(--red)' }}>+{fmtMoney(basePrice * 0.5)}</span>
+          </label>
+        )}
       </div>
       <div style={S.footer}>
-        <button style={S.primaryBtn(!selected.length)} disabled={!selected.length} onClick={() => onNext(selected)}>
+        <button style={S.primaryBtn(!selected.length)} disabled={!selected.length} onClick={() => onNext(selected, doubleMeat)}>
           Continue to Cheese →
         </button>
       </div>
@@ -625,8 +668,10 @@ function ToppingsScreen({ onBack, onNext, bread, initial }) {
 }
 
 // 7. Notes
-function NotesScreen({ onBack, onNext, initial, cartCount }) {
+function NotesScreen({ onBack, onNext, initial, initialLabelName, cartCount }) {
   const [notes, setNotes] = useState(initial || '')
+  const [labelName, setLabelName] = useState(initialLabelName || '')
+  const labelStyle = { fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:1, color:'var(--gray)', marginBottom:6, display:'block' }
   return (
     <div style={S.screen}>
       <div style={S.header}>
@@ -652,20 +697,30 @@ function NotesScreen({ onBack, onNext, initial, cartCount }) {
           placeholder="e.g. extra mayo on the side, no onions, allergic to nuts..."
           style={{ width:'100%', minHeight:140, padding:'16px', borderRadius:'var(--radius)', border:'2px solid var(--gray-light)', fontSize:16, resize:'none', background:'var(--white)' }}
         />
+        <div>
+          <label style={labelStyle}>Name For This Sandwich <span style={{ color:'var(--gray)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>(optional — prints on label)</span></label>
+          <input
+            value={labelName}
+            onChange={e => setLabelName(e.target.value)}
+            placeholder="e.g. Brian"
+            style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:'2px solid var(--gray-light)', fontSize:16, background:'var(--white)', color:'var(--black)' }}
+          />
+          <div style={{ fontSize:12, color:'var(--gray)', marginTop:4 }}>Useful when ordering for a group — the label always keeps the account name for bagging, plus a "{labelName || 'Name'}'s Sandwich" tag so staff know which sandwich is whose.</div>
+        </div>
       </div>
       <div style={S.footer}>
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
           <div style={{ display:'flex', gap:12 }}>
-            <button style={{ ...S.secondaryBtn, flex:'0 0 auto', width:'auto', padding:'16px 24px' }} onClick={() => onNext(notes, 'review')}>
+            <button style={{ ...S.secondaryBtn, flex:'0 0 auto', width:'auto', padding:'16px 24px' }} onClick={() => onNext(notes, labelName, 'review')}>
               Skip
             </button>
-            <button style={{ ...S.primaryBtn(false), flex:1 }} onClick={() => onNext(notes, 'review')}>
+            <button style={{ ...S.primaryBtn(false), flex:1 }} onClick={() => onNext(notes, labelName, 'review')}>
               {cartCount > 0 ? `Review Order (${cartCount + 1}) →` : 'Review Order →'}
             </button>
           </div>
           <button
             style={{ background:'none', border:'2px solid var(--gray-light)', borderRadius:'var(--radius)', padding:'14px', fontSize:15, fontWeight:700, color:'var(--black)', cursor:'pointer' }}
-            onClick={() => onNext(notes, 'addAnother')}
+            onClick={() => onNext(notes, labelName, 'addAnother')}
           >
             ➕ Add Another Sandwich
           </button>
@@ -676,7 +731,7 @@ function NotesScreen({ onBack, onNext, initial, cartCount }) {
 }
 
 // 8. Review & Confirm
-function ReviewScreen({ onBack, onConfirm, onAddAnother, onEditSandwich, onRemoveSandwich, cart, customer, orderNum, saving }) {
+function ReviewScreen({ onBack, onConfirm, onAddAnother, onEditSandwich, onRemoveSandwich, onDuplicateSandwich, onEditCustomer, cart, customer, orderNum, saving }) {
   return (
     <div style={S.screen}>
       <div style={S.header}>
@@ -684,7 +739,7 @@ function ReviewScreen({ onBack, onConfirm, onAddAnother, onEditSandwich, onRemov
         <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>Review Order</div>
       </div>
       <div style={S.body}>
-        <OrderSummaryCard cart={cart} customer={customer} orderNum={orderNum} onEditSandwich={onEditSandwich} onRemoveSandwich={onRemoveSandwich} />
+        <OrderSummaryCard cart={cart} customer={customer} orderNum={orderNum} onEditSandwich={onEditSandwich} onRemoveSandwich={onRemoveSandwich} onDuplicateSandwich={onDuplicateSandwich} onEditCustomer={onEditCustomer} />
         <button
           onClick={onAddAnother}
           style={{ background:'none', border:'2px solid var(--gray-light)', borderRadius:'var(--radius)', padding:'14px', fontSize:15, fontWeight:700, color:'var(--black)', cursor:'pointer' }}
@@ -804,6 +859,9 @@ export default function App() {
         free_toppings: sw.freeToppings,
         dressings: sw.dressings,
         notes: sw.notes || null,
+        double_meat: !!sw.doubleMeat,
+        label_name: sw.labelName || null,
+        sms_opt_in: !!customer.smsOptIn,
         total: calcTotal(sw),
       }))
       const { error } = await supabase.from('sandwich_orders').insert(rows)
@@ -841,8 +899,9 @@ export default function App() {
     <ProteinScreen
       bread={order.bread}
       initial={order.proteins}
+      initialDoubleMeat={order.doubleMeat}
       onBack={() => setScreen('bread')}
-      onNext={(p) => { setOrder(o => ({ ...o, proteins: p })); setScreen('cheese') }}
+      onNext={(p, dm) => { setOrder(o => ({ ...o, proteins: p, doubleMeat: dm })); setScreen('cheese') }}
     />
   )
 
@@ -867,10 +926,11 @@ export default function App() {
   if (screen === 'notes') return (
     <NotesScreen
       initial={order.notes}
+      initialLabelName={order.labelName}
       cartCount={cart.length}
       onBack={() => setScreen('toppings')}
-      onNext={(n, action) => {
-        const finalOrder = { ...order, notes: n }
+      onNext={(n, labelName, action) => {
+        const finalOrder = { ...order, notes: n, labelName }
         commitSandwichToCart(finalOrder)
         setOrder(emptyOrder())
         if (action === 'addAnother') {
@@ -892,7 +952,22 @@ export default function App() {
       onAddAnother={() => { setOrder(emptyOrder()); setEditingIndex(null); setScreen('bread') }}
       onEditSandwich={(i) => { setOrder(cart[i]); setEditingIndex(i); setScreen('bread') }}
       onRemoveSandwich={(i) => setCart(c => c.filter((_, idx) => idx !== i))}
+      onDuplicateSandwich={(i) => setCart(c => {
+        const copy = [...c]
+        copy.splice(i + 1, 0, { ...c[i] })
+        return copy
+      })}
+      onEditCustomer={() => setScreen('editCustomer')}
       onConfirm={saveOrder}
+    />
+  )
+
+  if (screen === 'editCustomer') return (
+    <CustomerInfoScreen
+      editMode
+      initial={customer}
+      onBack={() => setScreen('review')}
+      onNext={(c) => { setCustomer(c); setScreen('review') }}
     />
   )
 
