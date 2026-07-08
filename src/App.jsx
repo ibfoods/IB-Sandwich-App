@@ -511,7 +511,16 @@ function ProteinScreen({ onBack, onNext, bread, initial, initialDoubleMeat }) {
         <div style={{ fontSize:13, color:'var(--gray)', fontWeight:600 }}>{selected.length}/{MAX}</div>
       </div>
       <div style={S.body}>
-        <div style={S.sectionSub}>Up to {MAX} proteins · {bread} · {hero ? 'Hero/Wrap' : 'Roll'} pricing</div>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+          <div style={{ ...S.sectionSub, marginBottom:0 }}>Up to {MAX} proteins · {bread} · {hero ? 'Hero/Wrap' : 'Roll'} pricing</div>
+          {!!selected.length && (
+            <label className="fade-in" style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:50, border:`2px solid ${doubleMeat ? 'var(--red)' : 'var(--gray-light)'}`, background: doubleMeat ? 'var(--red-light)' : 'var(--white)', cursor:'pointer' }}>
+              <input type="checkbox" checked={doubleMeat} onChange={e => setDoubleMeat(e.target.checked)} style={{ width:18, height:18, flexShrink:0 }} />
+              <span style={{ fontSize:13, fontWeight:700 }}>Double Meat</span>
+              <span style={{ fontSize:13, fontWeight:700, color:'var(--red)' }}>+{fmtMoney(basePrice * 0.5)}</span>
+            </label>
+          )}
+        </div>
         {PROTEIN_CATEGORIES.map(cat => (
           <CategorySection key={cat} title={cat}>
             {PROTEINS.filter(p => p.category === cat).map(p => {
@@ -531,13 +540,6 @@ function ProteinScreen({ onBack, onNext, bread, initial, initialDoubleMeat }) {
             })}
           </CategorySection>
         ))}
-        {!!selected.length && (
-          <label className="fade-in" style={{ display:'flex', alignItems:'center', gap:10, padding:'14px 16px', borderRadius:12, border:`2px solid ${doubleMeat ? 'var(--red)' : 'var(--gray-light)'}`, background: doubleMeat ? 'var(--red-light)' : 'var(--white)', cursor:'pointer' }}>
-            <input type="checkbox" checked={doubleMeat} onChange={e => setDoubleMeat(e.target.checked)} style={{ width:20, height:20, flexShrink:0 }} />
-            <span style={{ flex:1, fontSize:15, fontWeight:700 }}>Double Meat</span>
-            <span style={{ fontSize:14, fontWeight:700, color:'var(--red)' }}>+{fmtMoney(basePrice * 0.5)}</span>
-          </label>
-        )}
       </div>
       <div style={S.footer}>
         <button style={S.primaryBtn(!selected.length)} disabled={!selected.length} onClick={() => onNext(selected, doubleMeat)}>
