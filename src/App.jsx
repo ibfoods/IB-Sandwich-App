@@ -705,7 +705,7 @@ function NotesScreen({ onBack, onNext, initial, initialLabelName, cartCount }) {
             placeholder="e.g. Brian"
             style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:'2px solid var(--gray-light)', fontSize:16, background:'var(--white)', color:'var(--black)' }}
           />
-          <div style={{ fontSize:12, color:'var(--gray)', marginTop:4 }}>Useful when ordering for a group — the label always keeps the account name for bagging, plus a "{labelName || 'Name'}'s Sandwich" tag so staff know which sandwich is whose.</div>
+          <div style={{ fontSize:12, color:'var(--gray)', marginTop:4 }}>Useful when ordering for a group.</div>
         </div>
       </div>
       <div style={S.footer}>
