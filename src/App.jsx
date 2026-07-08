@@ -950,7 +950,16 @@ export default function App() {
       customer={customer}
       orderNum={orderNum}
       saving={saving}
-      onBack={() => setScreen('notes')}
+      onBack={() => {
+        const lastIdx = cart.length - 1
+        if (lastIdx >= 0) {
+          setOrder(cart[lastIdx])
+          setEditingIndex(lastIdx)
+          setScreen('notes')
+        } else {
+          setScreen('customer')
+        }
+      }}
       onAddAnother={() => { setOrder(emptyOrder()); setEditingIndex(null); setScreen('bread') }}
       onEditSandwich={(i) => { setOrder(cart[i]); setEditingIndex(i); setScreen('bread') }}
       onRemoveSandwich={(i) => setCart(c => c.filter((_, idx) => idx !== i))}
