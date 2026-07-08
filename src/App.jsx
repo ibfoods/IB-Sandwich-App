@@ -183,10 +183,10 @@ function printLabels(orderNum, customer, cart) {
 // ─── Shared UI components ────────────────────────────────────────────────────
 
 const S = {
-  screen: { position:'fixed', inset:0, background:'var(--bg)', display:'flex', flexDirection:'column', overflow:'hidden' },
-  header: { background:'var(--white)', borderBottom:'1px solid var(--gray-light)', padding:'16px 20px', display:'flex', alignItems:'center', gap:12, flexShrink:0 },
-  body: { flex:1, minHeight:0, overflowY:'scroll', WebkitOverflowScrolling:'touch', overscrollBehaviorY:'contain', touchAction:'pan-y', padding:'20px', display:'flex', flexDirection:'column', gap:16 },
-  footer: { background:'var(--white)', borderTop:'1px solid var(--gray-light)', padding:'16px 20px', flexShrink:0 },
+  screen: { position:'fixed', inset:0, background:'var(--bg)', display:'grid', gridTemplateRows:'auto minmax(0,1fr) auto', overflow:'hidden' },
+  header: { background:'var(--white)', borderBottom:'1px solid var(--gray-light)', padding:'16px 20px', display:'flex', alignItems:'center', gap:12 },
+  body: { minHeight:0, overflowY:'scroll', WebkitOverflowScrolling:'touch', overscrollBehaviorY:'contain', touchAction:'pan-y', padding:'20px', display:'flex', flexDirection:'column', gap:16 },
+  footer: { background:'var(--white)', borderTop:'1px solid var(--gray-light)', padding:'16px 20px' },
   card: { background:'var(--white)', borderRadius:'var(--radius)', boxShadow:'var(--shadow-sm)', overflow:'hidden' },
   sectionTitle: { fontFamily:"'Playfair Display', serif", fontSize:22, fontWeight:700, color:'var(--black)', marginBottom:4 },
   sectionSub: { fontSize:13, color:'var(--gray)', marginBottom:16 },
