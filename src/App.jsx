@@ -740,7 +740,6 @@ function ReviewScreen({ onBack, onConfirm, onAddAnother, onEditSandwich, onRemov
       <div style={S.header}>
         <button style={S.backBtn} onClick={onBack}>←</button>
         <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>Review Order</div>
-        <div style={{ fontSize:10, color:'var(--gray-light)', marginLeft:'auto' }}>build v-scroll-7</div>
       </div>
       <div style={S.body}>
         <OrderSummaryCard cart={cart} customer={customer} orderNum={orderNum} onEditSandwich={onEditSandwich} onRemoveSandwich={onRemoveSandwich} onDuplicateSandwich={onDuplicateSandwich} onEditCustomer={onEditCustomer} />
