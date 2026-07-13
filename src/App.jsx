@@ -344,7 +344,18 @@ function OrderSummaryCard({ cart, customer, orderNum, onEditSandwich, onRemoveSa
 // ─── SCREENS ─────────────────────────────────────────────────────────────────
 
 // 1. Home
-function HomeScreen({ onBuildYourOwn, onPremade, kioskLocation }) {
+function HomeScreen({ onBuildYourOwn, onPremade, kioskLocation, onOpenDeviceSettings }) {
+  const tapRef = useRef({ count: 0, timer: null })
+  const handleFooterTap = () => {
+    const t = tapRef.current
+    t.count += 1
+    if (t.timer) clearTimeout(t.timer)
+    t.timer = setTimeout(() => { t.count = 0 }, 1500)
+    if (t.count >= 5) {
+      t.count = 0
+      onOpenDeviceSettings()
+    }
+  }
   return (
     <div style={{ ...S.screen, alignItems:'center', justifyContent:'center', background:'var(--white)' }}>
       <div className="fade-up" style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:32, padding:40, width:'100%', maxWidth:480 }}>
@@ -373,7 +384,80 @@ function HomeScreen({ onBuildYourOwn, onPremade, kioskLocation }) {
             <span style={{ fontSize:13, fontWeight:500 }}>Coming Soon</span>
           </button>
         </div>
-        <div style={{ fontSize:12, color:'var(--gray-light)', textAlign:'center' }}>Pay at the register · Please have your order number ready</div>
+        <div onClick={handleFooterTap} style={{ fontSize:12, color:'var(--gray-light)', textAlign:'center', padding:8 }}>Pay at the register · Please have your order number ready</div>
+      </div>
+    </div>
+  )
+}
+
+// 1.25 Device Settings (hidden — reached by tapping the Home screen footer 5x)
+function DeviceSettingsScreen({ onBack, onLocked, onUnlocked, kioskLocation }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [authed, setAuthed] = useState(false)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const login = async () => {
+    setErr('')
+    setBusy(true)
+    const { data, error } = await supabase
+      .from('sandwich_admin_users')
+      .select('*')
+      .eq('username', username.trim())
+      .eq('password', password.trim())
+      .maybeSingle()
+    setBusy(false)
+    if (error) { setErr(`Login error: ${error.message}`); return }
+    if (!data) { setErr('Invalid admin username or password.'); return }
+    setAuthed(true)
+  }
+
+  const inputStyle = { width:'100%', padding:'14px 16px', borderRadius:12, border:'2px solid var(--gray-light)', fontSize:16, background:'var(--white)', color:'var(--black)' }
+
+  return (
+    <div style={S.screen}>
+      <div style={S.header}>
+        <button style={S.backBtn} onClick={onBack}>←</button>
+        <div style={{ flex:1 }}>
+          <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>Device Settings</div>
+        </div>
+      </div>
+      <div style={S.body}>
+        {!authed ? (
+          <>
+            <div>
+              <div style={S.sectionTitle}>Staff login required</div>
+              <div style={S.sectionSub}>Enter an admin username and password to change this device's location lock.</div>
+            </div>
+            <input style={inputStyle} value={username} onChange={e => setUsername(e.target.value)} placeholder="Admin username" autoCapitalize="none" />
+            <input style={inputStyle} type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} placeholder="Admin password" />
+            {err && <div style={{ color:'#c62828', fontSize:13 }}>{err}</div>}
+            <button style={S.primaryBtn(busy)} disabled={busy} onClick={login}>{busy ? 'Checking…' : 'Log In'}</button>
+          </>
+        ) : (
+          <>
+            <div>
+              <div style={S.sectionTitle}>Lock this device</div>
+              <div style={S.sectionSub}>
+                {kioskLocation ? `Currently locked to ${kioskLocation}.` : 'Not currently locked — customers will see the location picker.'}
+              </div>
+            </div>
+            {LOCATIONS.map(loc => (
+              <button
+                key={loc.id}
+                onClick={() => onLocked(loc.name)}
+                style={{ ...S.card, textAlign:'left', padding:16, border: kioskLocation === loc.name ? '2px solid var(--red)' : '2px solid var(--gray-light)', background:'var(--white)' }}
+              >
+                <span style={{ fontSize:16, fontWeight:700, color:'var(--black)' }}>{loc.name}</span>
+                {kioskLocation === loc.name && <span style={{ marginLeft:8, fontSize:12, color:'var(--red)', fontWeight:700 }}>ACTIVE</span>}
+              </button>
+            ))}
+            {kioskLocation && (
+              <button style={{ ...S.secondaryBtn, marginTop:8 }} onClick={onUnlocked}>Clear Lock (show picker again)</button>
+            )}
+          </>
+        )}
       </div>
     </div>
   )
@@ -951,6 +1035,22 @@ export default function App() {
         setScreen(kioskLocation ? 'customer' : 'location')
       }}
       onPremade={() => {}}
+      onOpenDeviceSettings={() => setScreen('deviceSettings')}
+    />
+  )
+
+  if (screen === 'deviceSettings') return (
+    <DeviceSettingsScreen
+      kioskLocation={kioskLocation}
+      onBack={() => setScreen('home')}
+      onLocked={(locName) => {
+        try { localStorage.setItem(KIOSK_LOCATION_KEY, locName) } catch {}
+        setKioskLocation(locName)
+      }}
+      onUnlocked={() => {
+        try { localStorage.removeItem(KIOSK_LOCATION_KEY) } catch {}
+        setKioskLocation('')
+      }}
     />
   )
 
