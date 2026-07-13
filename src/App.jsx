@@ -398,11 +398,9 @@ function LocationScreen({ onBack, onNext }) {
           <button
             key={loc.id}
             onClick={() => onNext(loc.name)}
-            style={{ ...S.card, textAlign:'left', padding:16, display:'flex', flexDirection:'column', gap:2, border:'2px solid var(--gray-light)', background:'var(--white)' }}
+            style={{ ...S.card, textAlign:'left', padding:16, border:'2px solid var(--gray-light)', background:'var(--white)' }}
           >
             <span style={{ fontSize:16, fontWeight:700, color:'var(--black)' }}>{loc.name}</span>
-            <span style={{ fontSize:13, color:'var(--gray)' }}>{loc.address}</span>
-            <span style={{ fontSize:13, color:'var(--gray)' }}>{loc.city}</span>
           </button>
         ))}
       </div>
