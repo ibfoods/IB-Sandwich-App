@@ -7,6 +7,9 @@ import {
   CHEESES, cheesePrices,
   PAID_TOPPINGS, FREE_TOPPINGS, DRESSINGS,
 } from './lib/menu.js'
+import { LOCATIONS, findLocation } from './lib/locations.js'
+
+const KIOSK_LOCATION_KEY = 'ib_kiosk_location'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -341,13 +344,18 @@ function OrderSummaryCard({ cart, customer, orderNum, onEditSandwich, onRemoveSa
 // ─── SCREENS ─────────────────────────────────────────────────────────────────
 
 // 1. Home
-function HomeScreen({ onBuildYourOwn, onPremade }) {
+function HomeScreen({ onBuildYourOwn, onPremade, kioskLocation }) {
   return (
     <div style={{ ...S.screen, alignItems:'center', justifyContent:'center', background:'var(--white)' }}>
       <div className="fade-up" style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:32, padding:40, width:'100%', maxWidth:480 }}>
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:12 }}>
           <img src="/ib-script-logo.png" alt="Iavarone Bros." style={{ width:'85%', maxWidth:360, objectFit:'contain' }} onError={e => { e.target.style.display='none' }} />
           <div style={{ fontSize:14, color:'var(--gray)', fontWeight:500, textTransform:'uppercase', letterSpacing:2 }}>Sandwich Bar</div>
+          {kioskLocation && (
+            <div style={{ fontSize:12, color:'var(--gray)', background:'var(--bg)', padding:'4px 12px', borderRadius:20, marginTop:2 }}>
+              📍 {kioskLocation}
+            </div>
+          )}
         </div>
         <div style={{ width:'100%', display:'flex', flexDirection:'column', gap:14 }}>
           <button
@@ -366,6 +374,37 @@ function HomeScreen({ onBuildYourOwn, onPremade }) {
           </button>
         </div>
         <div style={{ fontSize:12, color:'var(--gray-light)', textAlign:'center' }}>Pay at the register · Please have your order number ready</div>
+      </div>
+    </div>
+  )
+}
+
+// 1.5 Location
+function LocationScreen({ onBack, onNext }) {
+  return (
+    <div style={S.screen}>
+      <div style={S.header}>
+        <button style={S.backBtn} onClick={onBack}>←</button>
+        <div style={{ flex:1 }}>
+          <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>Choose Your Store</div>
+        </div>
+      </div>
+      <div style={S.body}>
+        <div>
+          <div style={S.sectionTitle}>Which location?</div>
+          <div style={S.sectionSub}>We'll have your order ready there</div>
+        </div>
+        {LOCATIONS.map(loc => (
+          <button
+            key={loc.id}
+            onClick={() => onNext(loc.name)}
+            style={{ ...S.card, textAlign:'left', padding:16, display:'flex', flexDirection:'column', gap:2, border:'2px solid var(--gray-light)', background:'var(--white)' }}
+          >
+            <span style={{ fontSize:16, fontWeight:700, color:'var(--black)' }}>{loc.name}</span>
+            <span style={{ fontSize:13, color:'var(--gray)' }}>{loc.address}</span>
+            <span style={{ fontSize:13, color:'var(--gray)' }}>{loc.city}</span>
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -811,6 +850,30 @@ export default function App() {
   const [orderNum, setOrderNum] = useState('')
   const [cartId, setCartId] = useState('')
   const [saving, setSaving] = useState(false)
+  const [location, setLocation] = useState('')                 // location for the order currently being built
+  const [kioskLocation, setKioskLocation] = useState(() => {    // non-empty = this device is locked to one store
+    try { return localStorage.getItem(KIOSK_LOCATION_KEY) || '' } catch { return '' }
+  })
+
+  // One-time kiosk setup via URL: visit once with ?lockLocation=Maspeth to pin this
+  // device, or ?unlockLocation=1 to clear it. Then add the plain URL to the Home Screen.
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const lockParam = params.get('lockLocation')
+    const unlockParam = params.get('unlockLocation')
+    if (lockParam) {
+      const loc = findLocation(lockParam)
+      if (loc) {
+        try { localStorage.setItem(KIOSK_LOCATION_KEY, loc.name) } catch {}
+        setKioskLocation(loc.name)
+      }
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (unlockParam) {
+      try { localStorage.removeItem(KIOSK_LOCATION_KEY) } catch {}
+      setKioskLocation('')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
 
   const startNew = useCallback((prefill = null) => {
     setCart(prefill ? [prefill] : [])
@@ -819,11 +882,12 @@ export default function App() {
     setCustomer(emptyCustomer())
     setOrderNum(genOrderNum())
     setCartId(genCartId())
+    setLocation(kioskLocation || '')
     setScreen('customer')
-  }, [])
+  }, [kioskLocation])
 
   const startDuplicate = useCallback(() => {
-    // Keep same sandwiches, reset customer, generate new order number + cart id
+    // Keep same sandwiches (and same location — same kiosk/counter), reset customer, generate new order number + cart id
     setCustomer(emptyCustomer())
     setOrderNum(genOrderNum())
     setCartId(genCartId())
@@ -865,6 +929,7 @@ export default function App() {
         double_meat: !!sw.doubleMeat,
         label_name: sw.labelName || null,
         sms_opt_in: !!customer.smsOptIn,
+        location: location || null,
         total: calcTotal(sw),
       }))
       const { error } = await supabase.from('sandwich_orders').insert(rows)
@@ -880,12 +945,28 @@ export default function App() {
   // Initialize order number / cart id on mount
   React.useEffect(() => { setOrderNum(genOrderNum()); setCartId(genCartId()) }, [])
 
-  if (screen === 'home') return <HomeScreen onBuildYourOwn={() => setScreen('customer')} onPremade={() => {}} />
+  if (screen === 'home') return (
+    <HomeScreen
+      kioskLocation={kioskLocation}
+      onBuildYourOwn={() => {
+        setLocation(kioskLocation || '')
+        setScreen(kioskLocation ? 'customer' : 'location')
+      }}
+      onPremade={() => {}}
+    />
+  )
+
+  if (screen === 'location') return (
+    <LocationScreen
+      onBack={() => setScreen('home')}
+      onNext={(locName) => { setLocation(locName); setScreen('customer') }}
+    />
+  )
 
   if (screen === 'customer') return (
     <CustomerInfoScreen
       initial={customer}
-      onBack={() => setScreen('home')}
+      onBack={() => setScreen(kioskLocation ? 'home' : 'location')}
       onNext={(c) => { setCustomer(c); setScreen('bread') }}
     />
   )
@@ -989,7 +1070,7 @@ export default function App() {
       cart={cart}
       customer={customer}
       orderNum={orderNum}
-      onNewOrder={() => { setCart([]); setOrder(emptyOrder()); setEditingIndex(null); setScreen('home') }}
+      onNewOrder={() => { setCart([]); setOrder(emptyOrder()); setEditingIndex(null); setLocation(kioskLocation || ''); setScreen('home') }}
       onDuplicate={startDuplicate}
     />
   )
