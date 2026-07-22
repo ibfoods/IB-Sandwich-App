@@ -27,16 +27,18 @@ function Login({ onLogin }) {
   const go = async () => {
     setErr('')
     setBusy(true)
-    const { data, error } = await supabase
-      .from('sandwich_admin_users')
-      .select('*')
-      .eq('username', username.trim())
-      .eq('password', password.trim())
-      .maybeSingle()
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: username.trim(),
+      password: password.trim(),
+    })
     setBusy(false)
-    if (error) { setErr(`Login error: ${error.message}`); return }
-    if (!data) { setErr('Invalid username or password.'); return }
-    onLogin(data)
+    if (error) {
+      setErr(error.message === 'Invalid login credentials'
+        ? 'Invalid email or password.'
+        : `Login error: ${error.message}`)
+      return
+    }
+    onLogin({ ...data.user, username: data.user.email })
   }
 
   return (
@@ -48,8 +50,8 @@ function Login({ onLogin }) {
           <p style={{ color:'#888', fontSize:12 }}>Sandwich App Admin</p>
         </div>
         <div style={card}>
-          <p style={{ fontSize:12, color:'#666', marginBottom:4 }}>Username</p>
-          <input value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} placeholder="Username" style={{ ...inp, fontSize:16 }} />
+          <p style={{ fontSize:12, color:'#666', marginBottom:4 }}>Email</p>
+          <input type="email" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} placeholder="you@ibfoods.com" style={{ ...inp, fontSize:16 }} />
           <p style={{ fontSize:12, color:'#666', marginBottom:4 }}>Password</p>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && go()} placeholder="Password" style={{ ...inp, fontSize:16, marginBottom:14 }} />
           {err && <p style={{ color:'#c62828', fontSize:12, marginBottom:10 }}>{err}</p>}
@@ -307,53 +309,6 @@ function SmsOptIns({ user, onLogout, onNav }) {
 
 
 function Users({ user, onLogout, onNav }) {
-  const [users, setUsers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [newUsername, setNewUsername] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [err, setErr] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('sandwich_admin_users')
-      .select('id, username, created_at')
-      .order('created_at', { ascending: true })
-    if (error) console.error('User load error:', error)
-    setUsers(data || [])
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  const addUser = async () => {
-    setErr('')
-    const uname = newUsername.trim()
-    const pwd = newPassword.trim()
-    if (!uname || !pwd) { setErr('Username and password are required.'); return }
-    setBusy(true)
-    const { error } = await supabase
-      .from('sandwich_admin_users')
-      .insert({ username: uname, password: pwd })
-    setBusy(false)
-    if (error) {
-      setErr(error.code === '23505' ? 'That username already exists.' : `Error: ${error.message}`)
-      return
-    }
-    setNewUsername('')
-    setNewPassword('')
-    load()
-  }
-
-  const removeUser = async (u) => {
-    if (u.username === user.username) { alert("You can't remove the account you're currently logged in as.") ; return }
-    if (!confirm(`Remove admin user "${u.username}"? This can't be undone.`)) return
-    const { error } = await supabase.from('sandwich_admin_users').delete().eq('id', u.id)
-    if (error) { alert(`Error removing user: ${error.message}`); return }
-    load()
-  }
-
   return (
     <div style={{ fontFamily:'system-ui,sans-serif', fontSize:14, background:'#f5f5f5', minHeight:'100vh' }}>
       <div style={{ background:'#fff', borderBottom:'1px solid #e8e8e8', padding:'14px 20px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -371,39 +326,24 @@ function Users({ user, onLogout, onNav }) {
         </div>
 
         <div style={card}>
-          <div style={{ fontWeight:700, fontSize:15, marginBottom:12 }}>Add admin user</div>
-          <p style={{ fontSize:12, color:'#666', marginBottom:4 }}>Username</p>
-          <input value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="Username" style={inp} />
-          <p style={{ fontSize:12, color:'#666', marginBottom:4 }}>Password</p>
-          <input value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Password" style={inp} />
-          {err && <p style={{ color:'#c62828', fontSize:12, marginBottom:10 }}>{err}</p>}
-          <button onClick={addUser} disabled={busy} style={btn}>{busy ? 'Adding…' : 'Add User'}</button>
-          <p style={{ fontSize:11, color:'#aaa', marginTop:10 }}>
-            Same trust model as the rest of this panel — plain-text password match, no email/reset flow. Share the password with the person directly.
+          <div style={{ fontWeight:700, fontSize:15, marginBottom:12 }}>Admin users</div>
+          <p style={{ fontSize:13, color:'#666', lineHeight:1.6, marginBottom:12 }}>
+            Admin logins are managed in Supabase Authentication, not here. Passwords are
+            hashed and never stored in this app.
           </p>
-        </div>
-
-        <div style={card}>
-          <div style={{ fontWeight:700, fontSize:15, marginBottom:12 }}>Current admin users</div>
-          {loading ? (
-            <div style={{ color:'#999', fontSize:13 }}>Loading…</div>
-          ) : !users.length ? (
-            <div style={{ color:'#999', fontSize:13 }}>No admin users found.</div>
-          ) : (
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id} style={{ borderBottom:'1px solid #f0f0f0' }}>
-                    <td style={{ padding:'8px 4px' }}>{u.username}{u.username === user.username ? ' (you)' : ''}</td>
-                    <td style={{ padding:'8px 4px', color:'#999' }}>{new Date(u.created_at).toLocaleDateString()}</td>
-                    <td style={{ padding:'8px 4px', textAlign:'right' }}>
-                      <button onClick={() => removeUser(u)} style={{ background:'none', border:'1px solid #ddd', borderRadius:8, padding:'4px 10px', fontSize:12, cursor:'pointer', color:'#c62828' }}>Remove</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <p style={{ fontSize:13, color:'#666', lineHeight:1.6, marginBottom:12 }}>
+            To add someone: Supabase dashboard → Authentication → Users → Add user →
+            Create new user. Use their email address and turn on <strong>Auto Confirm User</strong>.
+            To remove someone, delete them from that same list.
+          </p>
+          <a
+            href="https://supabase.com/dashboard/project/jrdylryrawprhvefzfid/auth/users"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ ...btn, display:'inline-block', textDecoration:'none' }}
+          >
+            Open Supabase Users
+          </a>
         </div>
       </div>
     </div>
@@ -413,8 +353,33 @@ function Users({ user, onLogout, onNav }) {
 export default function Admin() {
   const [user, setUser] = useState(null)
   const [tab, setTab] = useState('reports')
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data?.session?.user) {
+        setUser({ ...data.session.user, username: data.session.user.email })
+      }
+      setChecking(false)
+    })
+  }, [])
+
+  const logout = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setTab('reports')
+  }
+
+  if (checking) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', fontFamily:'system-ui,sans-serif', color:'#999', fontSize:14 }}>
+        Loading…
+      </div>
+    )
+  }
+
   if (!user) return <Login onLogin={setUser} />
-  if (tab === 'users') return <Users user={user} onLogout={() => setUser(null)} onNav={setTab} />
-  if (tab === 'sms') return <SmsOptIns user={user} onLogout={() => setUser(null)} onNav={setTab} />
-  return <Reports user={user} onLogout={() => setUser(null)} onNav={setTab} />
+  if (tab === 'users') return <Users user={user} onLogout={logout} onNav={setTab} />
+  if (tab === 'sms') return <SmsOptIns user={user} onLogout={logout} onNav={setTab} />
+  return <Reports user={user} onLogout={logout} onNav={setTab} />
 }

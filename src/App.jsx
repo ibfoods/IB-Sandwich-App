@@ -401,15 +401,19 @@ function DeviceSettingsScreen({ onBack, onLocked, onUnlocked, kioskLocation }) {
   const login = async () => {
     setErr('')
     setBusy(true)
-    const { data, error } = await supabase
-      .from('sandwich_admin_users')
-      .select('*')
-      .eq('username', username.trim())
-      .eq('password', password.trim())
-      .maybeSingle()
+    const { error } = await supabase.auth.signInWithPassword({
+      email: username.trim(),
+      password: password.trim(),
+    })
     setBusy(false)
-    if (error) { setErr(`Login error: ${error.message}`); return }
-    if (!data) { setErr('Invalid admin username or password.'); return }
+    if (error) {
+      setErr(error.message === 'Invalid login credentials'
+        ? 'Invalid admin email or password.'
+        : `Login error: ${error.message}`)
+      return
+    }
+    // Kiosk is a shared device — don't leave an admin session on it.
+    await supabase.auth.signOut()
     setAuthed(true)
   }
 
@@ -430,7 +434,7 @@ function DeviceSettingsScreen({ onBack, onLocked, onUnlocked, kioskLocation }) {
               <div style={S.sectionTitle}>Staff login required</div>
               <div style={S.sectionSub}>Enter an admin username and password to change this device's location lock.</div>
             </div>
-            <input style={inputStyle} value={username} onChange={e => setUsername(e.target.value)} placeholder="Admin username" autoCapitalize="none" />
+            <input style={inputStyle} value={username} onChange={e => setUsername(e.target.value)} placeholder="Admin email" type="email" autoCapitalize="none" />
             <input style={inputStyle} type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} placeholder="Admin password" />
             {err && <div style={{ color:'#c62828', fontSize:13 }}>{err}</div>}
             <button style={S.primaryBtn(busy)} disabled={busy} onClick={login}>{busy ? 'Checking…' : 'Log In'}</button>
