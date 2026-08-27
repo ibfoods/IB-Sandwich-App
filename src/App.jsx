@@ -8,6 +8,7 @@ import {
   PAID_TOPPINGS, FREE_TOPPINGS, DRESSINGS,
 } from './lib/menu.js'
 import { LOCATIONS, findLocation } from './lib/locations.js'
+import { ACTIVE_SIGNATURES, SIGNATURE_CATEGORIES, findSignature, signatureBarcodeValue } from './lib/signatures.js'
 
 const KIOSK_LOCATION_KEY = 'ib_kiosk_location'
 
@@ -21,6 +22,10 @@ function genOrderNum() {
 }
 
 function calcTotal(order) {
+  if (order.type === 'signature') {
+    const sig = findSignature(order.signatureId)
+    return sig ? sig.price : 0
+  }
   if (!order.bread) return 0
   const hero = isHeroBread(order.bread)
   let total = 0
@@ -54,6 +59,7 @@ function genCartId() {
 
 function emptyOrder() {
   return {
+    type: 'byo',
     bread: '',
     proteins: [],
     cheeses: [],
@@ -66,6 +72,15 @@ function emptyOrder() {
   }
 }
 
+function signatureOrder(sig) {
+  return {
+    type: 'signature',
+    signatureId: sig.id,
+    bread: '', proteins: [], cheeses: [], paidToppings: [], freeToppings: [], dressings: [],
+    notes: '', doubleMeat: false, labelName: '',
+  }
+}
+
 function emptyCustomer() {
   return { firstName: '', lastName: '', phone: '', email: '', smsOptIn: false }
 }
@@ -73,6 +88,7 @@ function emptyCustomer() {
 // ─── Print label ─────────────────────────────────────────────────────────────
 
 function buildLabelHtml(orderNum, customer, order, sandwichIndex, sandwichTotal) {
+  const sig = order.type === 'signature' ? findSignature(order.signatureId) : null
   const hero = order.bread ? isHeroBread(order.bread) : false
   const total = calcTotal(order)
   const proteinLines = order.proteins.map(p => `<div class="item-line">${p}${order.doubleMeat ? ' (2x)' : ''}</div>`).join('')
@@ -102,9 +118,9 @@ function buildLabelHtml(orderNum, customer, order, sandwichIndex, sandwichTotal)
     <div class="middle">
       <div class="mid-left">
         <div class="section-lbl">Item</div>
-        <div class="bread-line">${order.bread}</div>
-        ${proteinLines}
-        ${cheeseLines}
+        ${sig
+          ? `<div class="item-line">${sig.name}</div><div class="bread-line">Signature Sandwich</div>`
+          : `<div class="bread-line">${order.bread}</div>${proteinLines}${cheeseLines}`}
       </div>
       <div class="mid-right">
         ${toppingLines || dressingLines ? `<div class="section-lbl">Add-ons</div>${toppingLines}${dressingLines}` : ''}
@@ -130,8 +146,14 @@ function buildLabelHtml(orderNum, customer, order, sandwichIndex, sandwichTotal)
 function printLabels(orderNum, customer, cart) {
   const win = window.open('', '_blank')
   const pages = cart.map((order, i) => buildLabelHtml(orderNum, customer, order, i, cart.length)).join('')
-  const barcodeCalls = cart.map((_, i) => {
-    const code = (cart.length > 1 ? `${orderNum}${i + 1}` : orderNum).padStart(12, '0').slice(0, 12)
+  const barcodeCalls = cart.map((sw, i) => {
+    let code
+    if (sw.type === 'signature') {
+      const sig = findSignature(sw.signatureId)
+      code = sig ? signatureBarcodeValue(sig) : orderNum.padStart(12, '0').slice(0, 12)
+    } else {
+      code = (cart.length > 1 ? `${orderNum}${i + 1}` : orderNum).padStart(12, '0').slice(0, 12)
+    }
     return `try { JsBarcode("#bc${i}", "${code}", { format:"UPC", width:1.2, height:30, displayValue:false, margin:0 }); } catch(e) {}`
   }).join('\n')
 
@@ -256,6 +278,22 @@ function SandwichSummaryRows({ order }) {
   const hero = order.bread ? isHeroBread(order.bread) : false
   const rows = []
   if (order.labelName) rows.push({ label: 'Label', value: `${order.labelName}'s Sandwich` })
+  if (order.type === 'signature') {
+    const sig = findSignature(order.signatureId)
+    rows.push({ label: 'Signature', value: sig ? sig.name : 'Signature Sandwich', sub: sig ? fmtMoney(sig.price) : undefined })
+    if (order.notes) rows.push({ label: 'Notes', value: order.notes })
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:8 }}>
+            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:0.8, color:'var(--gray)', minWidth:72 }}>{r.label}</div>
+            <div style={{ flex:1, fontSize:14, fontWeight:500, textAlign:'right' }}>{r.value}</div>
+            {r.sub && <div style={{ fontSize:14, fontWeight:700, color:'var(--red)', minWidth:44, textAlign:'right' }}>{r.sub}</div>}
+          </div>
+        ))}
+      </div>
+    )
+  }
   if (order.bread) rows.push({ label: 'Bread', value: order.bread })
   if (order.proteins.length) rows.push({ label: 'Protein', value: order.proteins.join(', ') + (order.doubleMeat ? ' — Double Meat' : '') })
   if (order.cheeses.length) rows.push({ label: 'Cheese', value: order.cheeses.join(', '), sub: `${fmtMoney(order.cheeses.length * cheesePrices(order.bread))}` })
@@ -378,10 +416,10 @@ function HomeScreen({ onBuildYourOwn, onPremade, kioskLocation, onOpenDeviceSett
           </button>
           <button
             onClick={onPremade}
-            style={{ width:'100%', padding:'22px 24px', borderRadius:'var(--radius)', background:'var(--bg)', color:'var(--gray)', fontSize:19, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'space-between', border:'2px solid var(--gray-light)', cursor:'not-allowed' }}
+            style={{ width:'100%', padding:'22px 24px', borderRadius:'var(--radius)', background:'var(--white)', color:'var(--gold)', fontSize:19, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'space-between', border:'2px solid var(--gold)', cursor:'pointer', boxShadow:'0 6px 18px rgba(201,151,58,0.18)' }}
           >
             <span>Signature Sandwiches</span>
-            <span style={{ fontSize:13, fontWeight:500 }}>Coming Soon</span>
+            <span style={{ fontSize:22 }}>→</span>
           </button>
         </div>
         <div onClick={handleFooterTap} style={{ fontSize:12, color:'var(--gray-light)', textAlign:'center', padding:8 }}>Pay at the register · Please have your order number ready</div>
@@ -858,6 +896,144 @@ function NotesScreen({ onBack, onNext, initial, initialLabelName, cartCount, isE
   )
 }
 
+// 7.5 Signature Sandwiches — menu (preset items, no modifiers yet)
+function SignatureMenuScreen({ onBack, onSelect, cartCount }) {
+  return (
+    <div style={S.screen}>
+      <div style={S.header}>
+        <button style={S.backBtn} onClick={onBack}>←</button>
+        <div style={{ flex:1 }}>
+          <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>Signature Sandwiches</div>
+          <div style={{ fontSize:12, color:'var(--gray)' }}>Chef-built favorites, ready to order{cartCount ? ` · ${cartCount} in your order` : ''}</div>
+        </div>
+      </div>
+      <div style={S.body}>
+        {SIGNATURE_CATEGORIES.map(cat => {
+          const items = ACTIVE_SIGNATURES.filter(s => s.category === cat)
+          if (!items.length) return null
+          return (
+            <div key={cat} style={{ flexShrink:0 }}>
+              <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:'var(--gold)', marginBottom:10 }}>{cat}</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:8 }}>
+                {items.map(sig => (
+                  <button key={sig.id} onClick={() => onSelect(sig)} style={{ ...S.card, display:'flex', alignItems:'stretch', gap:0, textAlign:'left', padding:0, cursor:'pointer', border:'1px solid var(--gray-light)' }}>
+                    <div style={{ width:92, minHeight:92, flexShrink:0, background:'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
+                      {sig.photo
+                        ? <img src={sig.photo} alt={sig.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} onError={e => { e.target.style.display='none' }} />
+                        : <img src="/app-icon.png" alt="" style={{ width:44, height:44, opacity:0.35 }} onError={e => { e.target.style.display='none' }} />}
+                    </div>
+                    <div style={{ flex:1, padding:'12px 14px', display:'flex', flexDirection:'column', gap:4, minWidth:0 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8 }}>
+                        <span style={{ fontSize:15, fontWeight:800, color:'var(--black)' }}>{sig.name}</span>
+                        <span style={{ fontSize:15, fontWeight:800, color:'var(--red)', flexShrink:0 }}>{fmtMoney(sig.price)}</span>
+                      </div>
+                      <div style={{ fontSize:12.5, color:'var(--gray)', lineHeight:1.45 }}>{sig.description}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// 7.6 Signature Sandwich — detail + special requests
+function SignatureDetailScreen({ sig, onBack, onCommit, initialNotes, initialLabelName, cartCount, isEditing }) {
+  const [notes, setNotes] = useState(initialNotes || '')
+  const [labelName, setLabelName] = useState(initialLabelName || '')
+  const displayCount = isEditing ? cartCount : cartCount + 1
+  const labelStyle = { fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:1, color:'var(--gray)', marginBottom:6, display:'block' }
+  return (
+    <div style={S.screen}>
+      <div style={S.header}>
+        <button style={S.backBtn} onClick={onBack}>←</button>
+        <div style={{ flex:1 }}>
+          <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>{sig.name}</div>
+          <div style={{ fontSize:13, fontWeight:700, color:'var(--red)' }}>{fmtMoney(sig.price)}</div>
+        </div>
+      </div>
+      <div style={S.body}>
+        {sig.photo && (
+          <div style={{ ...S.card, height:180, flexShrink:0 }}>
+            <img src={sig.photo} alt={sig.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} onError={e => { e.target.parentElement.style.display='none' }} />
+          </div>
+        )}
+        <div style={{ ...S.card, padding:16 }}>
+          <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:'var(--gold)', marginBottom:6 }}>What's On It</div>
+          <div style={{ fontSize:14, lineHeight:1.6, color:'var(--gray-dark)' }}>{sig.description}</div>
+        </div>
+        <div style={{ background:'var(--red-light)', borderRadius:12, padding:'12px 16px', borderLeft:'3px solid var(--red)' }}>
+          <div style={{ fontSize:13, color:'var(--gray-dark)', lineHeight:1.6 }}>
+            <strong>Note:</strong> Signature sandwiches are made as described. Requests for changes or additions via the field below are subject to upcharge at the register.
+          </div>
+        </div>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="Special requests — e.g. no onions, dressing on the side, allergic to nuts..."
+          style={{ width:'100%', minHeight:100, padding:'16px', borderRadius:'var(--radius)', border:'2px solid var(--gray-light)', fontSize:16, resize:'none', background:'var(--white)' }}
+        />
+        <div>
+          <label style={labelStyle}>Name For This Sandwich <span style={{ color:'var(--gray)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>(optional — prints on label)</span></label>
+          <input
+            value={labelName}
+            onChange={e => setLabelName(e.target.value)}
+            placeholder="e.g. Brian"
+            style={{ width:'100%', padding:'14px 16px', borderRadius:12, border:'2px solid var(--gray-light)', fontSize:16, background:'var(--white)', color:'var(--black)' }}
+          />
+          <div style={{ fontSize:12, color:'var(--gray)', marginTop:4 }}>Useful when ordering for a group.</div>
+        </div>
+      </div>
+      <div style={S.footer}>
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          <button style={S.primaryBtn(false)} onClick={() => onCommit(notes, labelName, 'review')}>
+            {isEditing ? 'Save Changes →' : cartCount > 0 ? `Add & Review Order (${displayCount}) →` : `Add to Order · ${fmtMoney(sig.price)} →`}
+          </button>
+          {!isEditing && (
+            <button
+              style={{ background:'none', border:'2px solid var(--gray-light)', borderRadius:'var(--radius)', padding:'14px', fontSize:15, fontWeight:700, color:'var(--black)', cursor:'pointer' }}
+              onClick={() => onCommit(notes, labelName, 'addAnother')}
+            >
+              ➕ Add & Choose Another Sandwich
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 7.7 Add Another — choose build-your-own or signature
+function AddTypeScreen({ onBack, onByo, onSignature }) {
+  return (
+    <div style={S.screen}>
+      <div style={S.header}>
+        <button style={S.backBtn} onClick={onBack}>←</button>
+        <div style={{ fontFamily:"'Playfair Display', serif", fontSize:20, fontWeight:700 }}>Add Another Sandwich</div>
+      </div>
+      <div style={{ ...S.body, justifyContent:'center' }}>
+        <button
+          onClick={onByo}
+          style={{ width:'100%', padding:'22px 24px', borderRadius:'var(--radius)', background:'var(--red)', color:'var(--white)', fontSize:18, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}
+        >
+          <span>Build Your Own</span>
+          <span style={{ fontSize:22 }}>→</span>
+        </button>
+        <button
+          onClick={onSignature}
+          style={{ width:'100%', padding:'22px 24px', borderRadius:'var(--radius)', background:'var(--white)', color:'var(--gold)', fontSize:18, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'space-between', border:'2px solid var(--gold)', flexShrink:0 }}
+        >
+          <span>Signature Sandwiches</span>
+          <span style={{ fontSize:22 }}>→</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // 8. Review & Confirm
 function ReviewScreen({ onBack, onConfirm, onAddAnother, onEditSandwich, onRemoveSandwich, onDuplicateSandwich, onEditCustomer, cart, customer, orderNum, saving }) {
   return (
@@ -933,6 +1109,8 @@ export default function App() {
   const [order, setOrder] = useState(emptyOrder())   // sandwich currently being built/edited
   const [cart, setCart] = useState([])               // sandwiches already added in this order
   const [editingIndex, setEditingIndex] = useState(null) // index in cart being edited, or null if building a new one
+  const [buildMode, setBuildMode] = useState('byo')       // 'byo' | 'signature' — what flow starts after customer info
+  const [selectedSig, setSelectedSig] = useState(null)    // signature item currently being viewed/edited
   const [orderNum, setOrderNum] = useState('')
   const [cartId, setCartId] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1005,7 +1183,11 @@ export default function App() {
         last_name: customer.lastName,
         phone: customer.phone,
         email: customer.email || null,
-        bread: sw.bread,
+        item_type: sw.type || 'byo',
+        signature_id: sw.type === 'signature' ? sw.signatureId : null,
+        signature_name: sw.type === 'signature' ? (findSignature(sw.signatureId)?.name || null) : null,
+        signature_upc: sw.type === 'signature' ? (findSignature(sw.signatureId)?.upc || null) : null,
+        bread: sw.type === 'signature' ? null : sw.bread,
         proteins: sw.proteins,
         cheeses: sw.cheeses,
         paid_toppings: sw.paidToppings,
@@ -1035,10 +1217,15 @@ export default function App() {
     <HomeScreen
       kioskLocation={kioskLocation}
       onBuildYourOwn={() => {
+        setBuildMode('byo')
         setLocation(kioskLocation || '')
         setScreen(kioskLocation ? 'customer' : 'location')
       }}
-      onPremade={() => {}}
+      onPremade={() => {
+        setBuildMode('signature')
+        setLocation(kioskLocation || '')
+        setScreen(kioskLocation ? 'customer' : 'location')
+      }}
       onOpenDeviceSettings={() => setScreen('deviceSettings')}
     />
   )
@@ -1069,7 +1256,47 @@ export default function App() {
     <CustomerInfoScreen
       initial={customer}
       onBack={() => setScreen(kioskLocation ? 'home' : 'location')}
-      onNext={(c) => { setCustomer(c); setScreen('bread') }}
+      onNext={(c) => { setCustomer(c); setScreen(buildMode === 'signature' ? 'sigMenu' : 'bread') }}
+    />
+  )
+
+  if (screen === 'sigMenu') return (
+    <SignatureMenuScreen
+      cartCount={cart.length}
+      onBack={() => setScreen(cart.length ? 'review' : 'customer')}
+      onSelect={(sig) => {
+        setSelectedSig(sig)
+        setOrder(o => (editingIndex !== null && o.type === 'signature')
+          ? { ...o, signatureId: sig.id }          // editing: swap the item, keep notes/label name
+          : signatureOrder(sig))
+        setScreen('sigDetail')
+      }}
+    />
+  )
+
+  if (screen === 'sigDetail' && selectedSig) return (
+    <SignatureDetailScreen
+      sig={selectedSig}
+      cartCount={cart.length}
+      isEditing={editingIndex !== null}
+      initialNotes={order.notes}
+      initialLabelName={order.labelName}
+      onBack={() => setScreen('sigMenu')}
+      onCommit={(n, labelName, action) => {
+        const finalOrder = { ...order, notes: n, labelName }
+        commitSandwichToCart(finalOrder)
+        setOrder(emptyOrder())
+        setSelectedSig(null)
+        setScreen(action === 'addAnother' ? 'addType' : 'review')
+      }}
+    />
+  )
+
+  if (screen === 'addType') return (
+    <AddTypeScreen
+      onBack={() => setScreen('review')}
+      onByo={() => { setOrder(emptyOrder()); setEditingIndex(null); setScreen('bread') }}
+      onSignature={() => { setOrder(emptyOrder()); setEditingIndex(null); setScreen('sigMenu') }}
     />
   )
 
@@ -1121,7 +1348,7 @@ export default function App() {
         commitSandwichToCart(finalOrder)
         setOrder(emptyOrder())
         if (action === 'addAnother') {
-          setScreen('bread')
+          setScreen('addType')
         } else {
           setScreen('review')
         }
@@ -1138,15 +1365,31 @@ export default function App() {
       onBack={() => {
         const lastIdx = cart.length - 1
         if (lastIdx >= 0) {
-          setOrder(cart[lastIdx])
+          const last = cart[lastIdx]
+          setOrder(last)
           setEditingIndex(lastIdx)
-          setScreen('notes')
+          if (last.type === 'signature') {
+            setSelectedSig(findSignature(last.signatureId) || null)
+            setScreen('sigDetail')
+          } else {
+            setScreen('notes')
+          }
         } else {
           setScreen('customer')
         }
       }}
-      onAddAnother={() => { setOrder(emptyOrder()); setEditingIndex(null); setScreen('bread') }}
-      onEditSandwich={(i) => { setOrder(cart[i]); setEditingIndex(i); setScreen('bread') }}
+      onAddAnother={() => { setOrder(emptyOrder()); setEditingIndex(null); setScreen('addType') }}
+      onEditSandwich={(i) => {
+        const sw = cart[i]
+        setOrder(sw)
+        setEditingIndex(i)
+        if (sw.type === 'signature') {
+          setSelectedSig(findSignature(sw.signatureId) || null)
+          setScreen('sigDetail')
+        } else {
+          setScreen('bread')
+        }
+      }}
       onRemoveSandwich={(i) => setCart(c => c.filter((_, idx) => idx !== i))}
       onDuplicateSandwich={(i) => setCart(c => {
         const copy = [...c]

@@ -97,6 +97,7 @@ function Reports({ user, onLogout, onNav }) {
   }
 
   const proteinCounts = tally(rows.flatMap(r => r.proteins || []))
+  const signatureCounts = tally(rows.filter(r => r.item_type === 'signature').map(r => r.signature_name).filter(Boolean))
   const cheeseCounts = tally(rows.flatMap(r => r.cheeses || []))
   const locationCounts = tally(rows.map(r => r.location).filter(Boolean))
 
@@ -185,10 +186,7 @@ function Reports({ user, onLogout, onNav }) {
         <RankTable title="Most Popular Protein + Cheese Combos" data={comboCounts} />
         <RankTable title="Orders by Location" data={locationCounts} emptyMsg="No location data for this range yet." />
 
-        <div style={card}>
-          <div style={{ fontWeight:700, fontSize:15, marginBottom:8 }}>Signature Sandwiches</div>
-          <div style={{ color:'#999', fontSize:13 }}>Not available yet — this report will populate once the Signature Sandwiches menu is built and live.</div>
-        </div>
+        <RankTable title="Most Popular Signature Sandwiches" data={signatureCounts} emptyMsg="No signature sandwich orders in this range yet." />
       </div>
     </div>
   )
