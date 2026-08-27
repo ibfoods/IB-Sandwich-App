@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase.js'
+import { printLabels, rowsToPrintable } from './lib/labels.js'
+import { LOCATIONS } from './lib/locations.js'
 
 // ─── Shared styles (kept close to App.jsx's palette) ─────────────────────────
 const inp = { width:'100%', padding:'10px 12px', borderRadius:8, border:'1px solid #ddd', fontSize:14, marginBottom:10, boxSizing:'border-box' }
@@ -57,6 +59,163 @@ function Login({ onLogin }) {
           {err && <p style={{ color:'#c62828', fontSize:12, marginBottom:10 }}>{err}</p>}
           <button onClick={go} disabled={busy} style={{ ...btn, width:'100%', padding:10 }}>{busy ? 'Signing in…' : 'Sign in'}</button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+
+// ─── Orders (live feed / deli-side view) ─────────────────────────────────────
+const REFRESH_MS = 15000
+
+function Orders({ user, onLogout, onNav }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [range, setRange] = useState('today')          // 'today' | '7d'
+  const [locFilter, setLocFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [lastUpdated, setLastUpdated] = useState(null)
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    const start = range === 'today' ? `${tod()}T00:00:00` : `${daysAgo(7)}T00:00:00`
+    const { data, error } = await supabase
+      .from('sandwich_orders')
+      .select('*')
+      .gte('created_at', start)
+      .order('created_at', { ascending: false })
+      .limit(600)
+    if (error) console.error('Orders load error:', error)
+    else { setRows(data || []); setLastUpdated(new Date()) }
+    setLoading(false)
+  }, [range])
+
+  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const t = setInterval(() => load(true), REFRESH_MS)
+    return () => clearInterval(t)
+  }, [load])
+
+  // group rows into orders by cart_id (fallback: order_number)
+  const orderMap = {}
+  rows.forEach(r => {
+    const key = r.cart_id || r.order_number
+    if (!orderMap[key]) orderMap[key] = []
+    orderMap[key].push(r)
+  })
+  let orders = Object.values(orderMap).map(list => {
+    const sorted = [...list].sort((a, b) => (a.item_index ?? 0) - (b.item_index ?? 0))
+    const first = sorted[0]
+    return {
+      key: first.cart_id || first.order_number,
+      orderNum: first.order_number,
+      createdAt: list.reduce((min, r) => r.created_at < min ? r.created_at : min, list[0].created_at),
+      location: first.location || '',
+      name: `${first.first_name || ''} ${first.last_name || ''}`.trim(),
+      phone: first.phone || '',
+      items: sorted,
+      total: list.reduce((sum, r) => sum + (parseFloat(r.total) || 0), 0),
+    }
+  }).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+  const locations = LOCATIONS.map(l => l.name)
+  if (locFilter !== 'all') orders = orders.filter(o => o.location === locFilter)
+  const q = search.trim().toLowerCase()
+  if (q) orders = orders.filter(o =>
+    o.orderNum.toLowerCase().includes(q) || o.name.toLowerCase().includes(q) || o.phone.replace(/\D/g, '').includes(q.replace(/\D/g, '') || '\u0000')
+  )
+
+  const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const fmtDay = (iso) => new Date(iso).toLocaleDateString([], { weekday: 'short', month: 'numeric', day: 'numeric' })
+  const isFresh = (iso) => Date.now() - new Date(iso).getTime() < 2 * 60 * 1000
+
+  const itemLine = (r) => {
+    if (r.item_type === 'signature') return `★ ${r.signature_name || 'Signature Sandwich'}`
+    const parts = [(r.proteins || []).join(', ')]
+    if (r.double_meat) parts.push('Double Meat')
+    if ((r.cheeses || []).length) parts.push((r.cheeses || []).join(', '))
+    return `${parts.filter(Boolean).join(' · ')} on ${r.bread || '—'}`
+  }
+
+  const reprint = (o) => {
+    const { orderNum, customer, cart } = rowsToPrintable(o.items)
+    printLabels(orderNum, customer, cart)
+  }
+
+  return (
+    <div style={{ fontFamily:'system-ui,sans-serif', fontSize:14, background:'#f5f5f5', minHeight:'100vh' }}>
+      <div style={{ background:'#fff', borderBottom:'1px solid #e8e8e8', padding:'14px 20px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ fontWeight:700 }}>Sandwich App · Orders</div>
+        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+          <span style={{ color:'#888', fontSize:13 }}>{user.username}</span>
+          <button onClick={onLogout} style={{ background:'none', border:'1px solid #ddd', borderRadius:8, padding:'6px 12px', fontSize:13, cursor:'pointer' }}>Log out</button>
+        </div>
+      </div>
+      <div style={{ maxWidth:860, margin:'0 auto', padding:'1.25rem' }}>
+        <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
+          <button onClick={() => onNav('orders')} style={btn}>Orders</button>
+          <button onClick={() => onNav('reports')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Reports</button>
+          <button onClick={() => onNav('sms')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>SMS Opt-Ins</button>
+          <button onClick={() => onNav('users')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Users</button>
+        </div>
+
+        <div style={{ ...card, display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={() => setRange('today')} style={range === 'today' ? btn : { ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Today</button>
+            <button onClick={() => setRange('7d')} style={range === '7d' ? btn : { ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Last 7 Days</button>
+          </div>
+          <select value={locFilter} onChange={e => setLocFilter(e.target.value)} style={{ ...inp, width:'auto', marginBottom:0 }}>
+            <option value="all">All locations</option>
+            {locations.map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, or order #" style={{ ...inp, flex:1, minWidth:180, marginBottom:0 }} />
+          <span style={{ color:'#999', fontSize:12, marginLeft:'auto' }}>
+            {loading ? 'Loading…' : lastUpdated ? `Auto-refreshes · updated ${lastUpdated.toLocaleTimeString([], { hour:'numeric', minute:'2-digit', second:'2-digit' })}` : ''}
+          </span>
+        </div>
+
+        {!orders.length && !loading && (
+          <div style={{ ...card, textAlign:'center', color:'#999' }}>No orders {range === 'today' ? 'yet today' : 'in the last 7 days'}{locFilter !== 'all' ? ` at ${locFilter}` : ''}.</div>
+        )}
+
+        {orders.map(o => (
+          <div key={o.key} style={{ ...card, padding:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', alignItems:'baseline', gap:10, flexWrap:'wrap' }}>
+                <span style={{ fontSize:20, fontWeight:800, color:'#8B1A2B' }}>#{o.orderNum}</span>
+                {isFresh(o.createdAt) && <span style={{ background:'#8B1A2B', color:'#fff', fontSize:10, fontWeight:800, borderRadius:20, padding:'2px 8px', letterSpacing:0.5 }}>JUST IN</span>}
+                <span style={{ color:'#666', fontSize:13 }}>{range === '7d' ? `${fmtDay(o.createdAt)} · ` : ''}{fmtTime(o.createdAt)}</span>
+                {o.location && <span style={{ background:'#f0f0f0', borderRadius:20, padding:'2px 10px', fontSize:12, color:'#555' }}>{o.location}</span>}
+              </div>
+              <div style={{ textAlign:'right' }}>
+                <div style={{ fontWeight:700 }}>{o.name}</div>
+                <div style={{ color:'#888', fontSize:12 }}>{o.phone}</div>
+              </div>
+            </div>
+            <div style={{ margin:'10px 0', borderTop:'1px solid #f0f0f0' }}>
+              {o.items.map((r, i) => (
+                <div key={r.id || i} style={{ padding:'8px 0', borderBottom:'1px solid #f7f7f7', display:'flex', justifyContent:'space-between', gap:10 }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontWeight:600, fontSize:13.5 }}>
+                      {r.label_name ? `${r.label_name}'s — ` : ''}{itemLine(r)}
+                    </div>
+                    {(r.paid_toppings || []).concat(r.free_toppings || [], r.dressings || []).length > 0 && r.item_type !== 'signature' && (
+                      <div style={{ color:'#888', fontSize:12, marginTop:2 }}>{(r.paid_toppings || []).concat(r.free_toppings || [], r.dressings || []).join(', ')}</div>
+                    )}
+                    {r.notes && <div style={{ color:'#b05a00', fontSize:12, marginTop:2 }}>Note: {r.notes}</div>}
+                  </div>
+                  <div style={{ fontWeight:700, fontSize:13, whiteSpace:'nowrap' }}>{fmtMoney(parseFloat(r.total) || 0)}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <button onClick={() => reprint(o)} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B', padding:'8px 14px' }}>
+                🖨 Reprint Label{o.items.length > 1 ? `s (${o.items.length})` : ''}
+              </button>
+              <div style={{ fontWeight:800, fontSize:15 }}>{fmtMoney(o.total)}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -152,6 +311,7 @@ function Reports({ user, onLogout, onNav }) {
       </div>
       <div style={{ maxWidth:860, margin:'0 auto', padding:'1.25rem' }}>
         <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+          <button onClick={() => onNav('orders')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Orders</button>
           <button onClick={() => onNav('reports')} style={btn}>Reports</button>
           <button onClick={() => onNav('sms')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>SMS Opt-Ins</button>
           <button onClick={() => onNav('users')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Users</button>
@@ -244,6 +404,7 @@ function SmsOptIns({ user, onLogout, onNav }) {
       </div>
       <div style={{ maxWidth:860, margin:'0 auto', padding:'1.25rem' }}>
         <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+          <button onClick={() => onNav('orders')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Orders</button>
           <button onClick={() => onNav('reports')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Reports</button>
           <button onClick={() => onNav('sms')} style={btn}>SMS Opt-Ins</button>
           <button onClick={() => onNav('users')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Users</button>
@@ -318,6 +479,7 @@ function Users({ user, onLogout, onNav }) {
       </div>
       <div style={{ maxWidth:860, margin:'0 auto', padding:'1.25rem' }}>
         <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+          <button onClick={() => onNav('orders')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Orders</button>
           <button onClick={() => onNav('reports')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Reports</button>
           <button onClick={() => onNav('sms')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>SMS Opt-Ins</button>
           <button onClick={() => onNav('users')} style={{ ...btn }}>Users</button>
@@ -350,7 +512,7 @@ function Users({ user, onLogout, onNav }) {
 
 export default function Admin() {
   const [user, setUser] = useState(null)
-  const [tab, setTab] = useState('reports')
+  const [tab, setTab] = useState('orders')
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
@@ -379,5 +541,6 @@ export default function Admin() {
   if (!user) return <Login onLogin={setUser} />
   if (tab === 'users') return <Users user={user} onLogout={logout} onNav={setTab} />
   if (tab === 'sms') return <SmsOptIns user={user} onLogout={logout} onNav={setTab} />
-  return <Reports user={user} onLogout={logout} onNav={setTab} />
+  if (tab === 'reports') return <Reports user={user} onLogout={logout} onNav={setTab} />
+  return <Orders user={user} onLogout={logout} onNav={setTab} />
 }
