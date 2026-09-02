@@ -346,6 +346,21 @@ function CheeseAndToppingsScreen({ onBack, onNext, bread, initial }) {
         <div>
           <div style={S.sectionTitle}>Toppings <span style={{ color:'var(--gray)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>· up to 2 free</span></div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            {/* L&T quick button — employee shortcut */}
+            <button
+              style={S.chip(freeToppings.includes('Lettuce') && freeToppings.includes('Tomatoes'))}
+              onClick={() => {
+                const hasLT = freeToppings.includes('Lettuce') && freeToppings.includes('Tomatoes')
+                if (hasLT) {
+                  setFreeToppings(prev => prev.filter(t => t !== 'Lettuce' && t !== 'Tomatoes'))
+                } else {
+                  setFreeToppings(prev => {
+                    const filtered = prev.filter(t => t !== 'Lettuce' && t !== 'Tomatoes')
+                    return [...filtered, 'Lettuce', 'Tomatoes'].slice(0, 2)
+                  })
+                }
+              }}
+            >L &amp; T</button>
             {FREE_TOPPINGS.map(t => (
               <button key={t} style={S.chip(freeToppings.includes(t))} onClick={() => toggle(freeToppings, setFreeToppings, t, 2)}>{t}</button>
             ))}
