@@ -525,7 +525,7 @@ function SigDetailScreen({ sig, onBack, onCommit, initialNotes, initialLabelName
 }
 
 // ─── Review Screen ────────────────────────────────────────────────────────────
-function ReviewScreen({ cart, customer, orderType, onConfirm, onBack, saving, instoreLabelText }) {
+function ReviewScreen({ cart, setCart, customer, orderType, onConfirm, onBack, saving, instoreLabelText }) {
   const total = calcCartTotal(cart)
   return (
     <div style={S.screen}>
@@ -557,7 +557,19 @@ function ReviewScreen({ cart, customer, orderType, onConfirm, onBack, saving, in
               {sig && order.addItems?.length > 0 && <div style={{ fontSize:13, color:'var(--gray-dark)' }}>ADD: {order.addItems.join(', ')}</div>}
               {order.notes && <div style={{ fontSize:13, color:'var(--gray)', fontStyle:'italic' }}>Note: {order.notes}</div>}
               {order.labelName && <div style={{ fontSize:13, color:'var(--gold)', fontWeight:600 }}>For: {order.labelName}</div>}
-              <div style={{ fontSize:13, fontWeight:700, marginTop:6 }}>{fmtMoney(calcTotal(order))}</div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
+                <div style={{ fontSize:13, fontWeight:700 }}>{fmtMoney(calcTotal(order))}</div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button
+                    onClick={() => setCart(prev => { const c = [...prev]; c.splice(i+1, 0, { ...order }); return c })}
+                    style={{ fontSize:12, fontWeight:600, padding:'5px 12px', borderRadius:20, border:'1px solid var(--gray-light)', background:'var(--white)', color:'var(--gray-dark)', cursor:'pointer' }}
+                  >Duplicate</button>
+                  <button
+                    onClick={() => setCart(prev => prev.filter((_, idx) => idx !== i))}
+                    style={{ fontSize:12, fontWeight:600, padding:'5px 12px', borderRadius:20, border:'1px solid var(--gray-light)', background:'var(--white)', color:'var(--red)', cursor:'pointer' }}
+                  >Remove</button>
+                </div>
+              </div>
             </div>
           )
         })}
@@ -773,6 +785,7 @@ export default function Counter() {
   if (screen === 'review') return (
     <ReviewScreen
       cart={cart}
+      setCart={setCart}
       customer={customer}
       orderType={orderType}
       instoreLabelText={instoreLabelText}
