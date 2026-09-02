@@ -51,6 +51,7 @@ function signatureOrder(sig) {
     signatureId: sig.id,
     bread: '', proteins: [], cheeses: [], paidToppings: [], freeToppings: [], dressings: [],
     notes: '', doubleMeat: false, labelName: '',
+    removeItems: [], addItems: [],
   }
 }
 
@@ -447,7 +448,7 @@ function CustomerInfoScreen({ onBack, onNext, initial, editMode }) {
       </div>
       <div style={S.footer}>
         <button style={S.primaryBtn(!valid)} disabled={!valid} onClick={() => onNext(form)}>
-          {editMode ? 'Save Info' : 'Continue to Bread →'}
+          {editMode ? 'Save Info' : buildMode === 'signature' ? 'Continue →' : 'Continue to Bread →'}
         </button>
       </div>
     </div>
@@ -796,11 +797,28 @@ function SignatureMenuScreen({ onBack, onSelect, cartCount }) {
 }
 
 // 7.6 Signature Sandwich — detail + special requests
-function SignatureDetailScreen({ sig, onBack, onCommit, initialNotes, initialLabelName, cartCount, isEditing }) {
+const SIG_REMOVE_OPTIONS = ['Lettuce', 'Tomato', 'Onion', 'Hot Peppers', 'Dressing', 'Sauce']
+const SIG_ADD_OPTIONS = ['Extra Cheese', 'Extra Meat', 'Bacon', 'Avocado', 'Fresh Mozzarella']
+
+function SignatureDetailScreen({ sig, onBack, onCommit, initialNotes, initialLabelName, initialRemove, initialAdd, cartCount, isEditing }) {
   const [notes, setNotes] = useState(initialNotes || '')
   const [labelName, setLabelName] = useState(initialLabelName || '')
+  const [removeItems, setRemoveItems] = useState(initialRemove || [])
+  const [addItems, setAddItems] = useState(initialAdd || [])
   const displayCount = isEditing ? cartCount : cartCount + 1
   const labelStyle = { fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:1, color:'var(--gray)', marginBottom:6, display:'block' }
+
+  function toggleItem(list, setList, item) {
+    setList(prev => prev.includes(item) ? prev.filter(x => x !== item) : [...prev, item])
+  }
+
+  const chipStyle = (selected) => ({
+    padding:'8px 14px', borderRadius:20, fontSize:14, fontWeight:600, cursor:'pointer',
+    border: selected ? '2px solid var(--red)' : '2px solid var(--gray-light)',
+    background: selected ? 'var(--red-light)' : 'var(--white)',
+    color: selected ? 'var(--red)' : 'var(--gray-dark)',
+  })
+
   return (
     <div style={S.screen}>
       <div style={S.header}>
@@ -822,9 +840,28 @@ function SignatureDetailScreen({ sig, onBack, onCommit, initialNotes, initialLab
         </div>
         <div style={{ background:'var(--red-light)', borderRadius:12, padding:'12px 16px', borderLeft:'3px solid var(--red)' }}>
           <div style={{ fontSize:13, color:'var(--gray-dark)', lineHeight:1.6 }}>
-            <strong>Note:</strong> Signature sandwiches are made as described. Requests for changes or additions via the field below are subject to upcharge at the register.
+            <strong>Note:</strong> Signature sandwiches are made as described. Additions may be subject to upcharge at the register.
           </div>
         </div>
+
+        <div>
+          <label style={labelStyle}>Remove <span style={{ color:'var(--gray)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>(optional)</span></label>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            {SIG_REMOVE_OPTIONS.map(item => (
+              <button key={item} style={chipStyle(removeItems.includes(item))} onClick={() => toggleItem(removeItems, setRemoveItems, item)}>{item}</button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Add <span style={{ color:'var(--gray)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>(optional — may be subject to upcharge)</span></label>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            {SIG_ADD_OPTIONS.map(item => (
+              <button key={item} style={chipStyle(addItems.includes(item))} onClick={() => toggleItem(addItems, setAddItems, item)}>{item}</button>
+            ))}
+          </div>
+        </div>
+
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
@@ -844,13 +881,13 @@ function SignatureDetailScreen({ sig, onBack, onCommit, initialNotes, initialLab
       </div>
       <div style={S.footer}>
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-          <button style={S.primaryBtn(false)} onClick={() => onCommit(notes, labelName, 'review')}>
+          <button style={S.primaryBtn(false)} onClick={() => onCommit(notes, labelName, removeItems, addItems, 'review')}>
             {isEditing ? 'Save Changes →' : cartCount > 0 ? `Add & Review Order (${displayCount}) →` : `Add to Order · ${fmtMoney(sig.price)} →`}
           </button>
           {!isEditing && (
             <button
               style={{ background:'none', border:'2px solid var(--gray-light)', borderRadius:'var(--radius)', padding:'14px', fontSize:15, fontWeight:700, color:'var(--black)', cursor:'pointer' }}
-              onClick={() => onCommit(notes, labelName, 'addAnother')}
+              onClick={() => onCommit(notes, labelName, removeItems, addItems, 'addAnother')}
             >
               ➕ Add & Choose Another Sandwich
             </button>
@@ -1051,6 +1088,8 @@ export default function App() {
         notes: sw.notes || null,
         double_meat: !!sw.doubleMeat,
         label_name: sw.labelName || null,
+        remove_items: sw.removeItems || [],
+        add_items: sw.addItems || [],
         sms_opt_in: !!customer.smsOptIn,
         location: location || null,
         total: calcTotal(sw),
@@ -1110,6 +1149,7 @@ export default function App() {
   if (screen === 'customer') return (
     <CustomerInfoScreen
       initial={customer}
+      buildMode={buildMode}
       onBack={() => setScreen(kioskLocation ? 'home' : 'location')}
       onNext={(c) => { setCustomer(c); setScreen(buildMode === 'signature' ? 'sigMenu' : 'bread') }}
     />
@@ -1136,9 +1176,11 @@ export default function App() {
       isEditing={editingIndex !== null}
       initialNotes={order.notes}
       initialLabelName={order.labelName}
+      initialRemove={order.removeItems || []}
+      initialAdd={order.addItems || []}
       onBack={() => setScreen('sigMenu')}
-      onCommit={(n, labelName, action) => {
-        const finalOrder = { ...order, notes: n, labelName }
+      onCommit={(n, labelName, removeItems, addItems, action) => {
+        const finalOrder = { ...order, notes: n, labelName, removeItems, addItems }
         commitSandwichToCart(finalOrder)
         setOrder(emptyOrder())
         setSelectedSig(null)

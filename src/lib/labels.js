@@ -48,6 +48,8 @@ export function buildLabelHtml(orderNum, customer, order, sandwichIndex, sandwic
   const orderLabel = sandwichTotal > 1 ? `${orderNum}-${sandwichIndex + 1}` : orderNum
   const orderSubLabel = sandwichTotal > 1 ? `Order (${sandwichIndex + 1}/${sandwichTotal})` : 'Order'
   const sandwichTag = order.labelName ? `${order.labelName}'s Sandwich` : ''
+  const removeLine = order.removeItems?.length ? `<div class="mod-line"><strong>NO:</strong> ${order.removeItems.join(', ')}</div>` : ''
+  const addLine = order.addItems?.length ? `<div class="mod-line"><strong>ADD:</strong> ${order.addItems.join(', ')}</div>` : ''
   return `<div class="label-page">
     <div class="top">
       <div class="logo-area">
@@ -69,7 +71,7 @@ export function buildLabelHtml(orderNum, customer, order, sandwichIndex, sandwic
       <div class="mid-left">
         <div class="section-lbl">Item</div>
         ${sig
-          ? `<div class="item-line">${sig.name}</div><div class="bread-line">Signature Sandwich</div>`
+          ? `<div class="item-line">${sig.name}</div><div class="bread-line">Signature Sandwich</div>${removeLine}${addLine}`
           : `<div class="bread-line">${order.bread}</div>${proteinLines}${cheeseLines}`}
       </div>
       <div class="mid-right">
@@ -182,6 +184,8 @@ export function rowsToPrintable(rows) {
     notes: r.notes || '',
     doubleMeat: !!r.double_meat,
     labelName: r.label_name || '',
+    removeItems: r.remove_items || [],
+    addItems: r.add_items || [],
     storedTotal: r.total != null ? parseFloat(r.total) : null,
   }))
   return { orderNum: first.order_number, customer, cart }
@@ -273,6 +277,8 @@ export function buildZpl(orderNum, customer, order, sandwichIndex, sandwichTotal
     const sigName = order.signatureName || 'Signature Sandwich'
     itemLines.push(zEsc(sigName))
     itemLines.push('Signature Sandwich')
+    if (order.removeItems?.length) itemLines.push(zEsc(zTrunc(`NO: ${order.removeItems.join(', ')}`, 55)))
+    if (order.addItems?.length)    itemLines.push(zEsc(zTrunc(`ADD: ${order.addItems.join(', ')}`, 55)))
   }
   if (order.notes) itemLines.push(zEsc(zTrunc(`Note: ${order.notes}`, 55)))
 
