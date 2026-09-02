@@ -702,7 +702,7 @@ export default function Counter() {
 
     const { error } = await supabase.from('sandwich_orders').insert(rows)
     setSaving(false)
-    if (error) { alert('Error saving order — try again'); return }
+    if (error) { alert(`Error saving order:\n${error.message}\n\nCode: ${error.code}`); return }
 
     // Print labels
     printLabels(orderNum, cust, cart)
