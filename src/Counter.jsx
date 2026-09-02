@@ -51,7 +51,7 @@ const S = {
   footer: { padding:'14px 20px', background:'var(--white)', borderTop:'1px solid var(--gray-light)', flexShrink:0 },
   primaryBtn: (disabled) => ({ width:'100%', padding:'16px', borderRadius:'var(--radius)', background: disabled ? 'var(--gray-light)' : 'var(--red)', color: disabled ? 'var(--gray)' : 'var(--white)', fontSize:16, fontWeight:700, border:'none', cursor: disabled ? 'not-allowed' : 'pointer' }),
   secondaryBtn: { width:'100%', padding:'14px', borderRadius:'var(--radius)', background:'var(--white)', color:'var(--black)', fontSize:15, fontWeight:600, border:'2px solid var(--gray-light)', cursor:'pointer' },
-  backBtn: { background:'none', border:'none', fontSize:22, cursor:'pointer', color:'var(--gray-dark)', padding:'4px 8px', flexShrink:0 },
+  backBtn: { background:'var(--gray-light)', border:'none', fontSize:18, fontWeight:700, cursor:'pointer', color:'var(--gray-dark)', padding:'8px 14px', borderRadius:10, flexShrink:0 },
   card: { background:'var(--white)', borderRadius:'var(--radius)', padding:'14px 16px', flexShrink:0 },
   sectionTitle: { fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:'var(--gold)', marginBottom:10 },
   chip: (sel) => ({ padding:'10px 16px', borderRadius:20, fontSize:14, fontWeight:600, cursor:'pointer', border: sel ? '2px solid var(--red)' : '2px solid var(--gray-light)', background: sel ? 'var(--red-light)' : 'var(--white)', color: sel ? 'var(--red)' : 'var(--gray-dark)' }),
