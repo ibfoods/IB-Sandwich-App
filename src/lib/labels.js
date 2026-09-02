@@ -239,7 +239,8 @@ function zEsc(str) {
 // sandwichIndex — 0-based index within cart
 // sandwichTotal — total sandwiches in cart
 // location    — location id string e.g. "woodbury" (optional)
-export function buildZpl(orderNum, customer, order, sandwichIndex, sandwichTotal, location) {
+// madeBy      — staff initials e.g. "JI" (optional)
+export function buildZpl(orderNum, customer, order, sandwichIndex, sandwichTotal, location, madeBy) {
   const DPI    = 203
   const W      = 812   // label width dots  (4.00")
   const H      = 508   // label height dots (2.50")
@@ -363,11 +364,14 @@ export function buildZpl(orderNum, customer, order, sandwichIndex, sandwichTotal
   // ── Separator 2 ────────────────────────────────────────────────────────────
   lines.push(`^FO${M},${sep2Y}^GB${W - M*2},2,2^FS`)
 
-  // ── Footer: Phone | Total | Location ───────────────────────────────────────
+  // ── Footer: Phone | Total | Location | Made by ─────────────────────────────
   lines.push(`^FO${M},${footerY}^A0N,22,20^FD${phone}^FS`)
   lines.push(`^FO340,${footerY}^A0N,22,20^FD${fmtMoney(total)}^FS`)
   if (locAbbr) {
     lines.push(`^FO${W - M - 200},${footerY}^A0N,22,20^FD${locAbbr}^FS`)
+  }
+  if (madeBy) {
+    lines.push(`^FO${M},${footerY + 24}^A0N,18,16^FDMade by: ${zEsc(madeBy)}^FS`)
   }
 
   // ── Barcode (UPC-A, full width, scannable height) ──────────────────────────
@@ -380,8 +384,8 @@ export function buildZpl(orderNum, customer, order, sandwichIndex, sandwichTotal
 }
 
 // Build ZPL for a full cart (one ZPL job = all sandwiches concatenated)
-export function buildCartZpl(orderNum, customer, cart, location) {
+export function buildCartZpl(orderNum, customer, cart, location, madeBy) {
   // Prepend ~DG logo graphic once — printer stores it in RAM for all labels in the job
-  const labels = cart.map((order, i) => buildZpl(orderNum, customer, order, i, cart.length, location)).join('\n')
+  const labels = cart.map((order, i) => buildZpl(orderNum, customer, order, i, cart.length, location, madeBy)).join('\n')
   return ZPL_LOGO_GRF + '\n' + labels
 }
