@@ -361,9 +361,16 @@ function CheeseAndToppingsScreen({ onBack, onNext, bread, initial }) {
                 }
               }}
             >L &amp; T</button>
-            {FREE_TOPPINGS.map(t => (
-              <button key={t} style={S.chip(freeToppings.includes(t))} onClick={() => toggle(freeToppings, setFreeToppings, t, 2)}>{t}</button>
-            ))}
+            {FREE_TOPPINGS.map(t => {
+              const ltActive = freeToppings.includes('Lettuce') && freeToppings.includes('Tomatoes')
+              // Don't highlight Lettuce or Tomatoes individually when L&T combo is active
+              const isActive = (t === 'Lettuce' || t === 'Tomatoes') && ltActive
+                ? false
+                : freeToppings.includes(t)
+              return (
+                <button key={t} style={S.chip(isActive)} onClick={() => toggle(freeToppings, setFreeToppings, t, 2)}>{t}</button>
+              )
+            })}
           </div>
         </div>
 
@@ -568,6 +575,9 @@ function ReviewScreen({ cart, setCart, customer, orderType, onConfirm, onBack, s
               </div>
               {!sig && order.proteins.length > 0 && <div style={{ fontSize:13, color:'var(--gray-dark)' }}>{order.proteins.join(', ')}{order.doubleMeat ? ' (2x)' : ''}</div>}
               {!sig && order.cheeses.length > 0 && <div style={{ fontSize:13, color:'var(--gray-dark)' }}>{order.cheeses.join(', ')}</div>}
+              {!sig && order.paidToppings?.length > 0 && <div style={{ fontSize:13, color:'var(--gray-dark)' }}>{order.paidToppings.join(', ')}</div>}
+              {!sig && order.freeToppings?.length > 0 && <div style={{ fontSize:13, color:'var(--gray-dark)' }}>{order.freeToppings.join(', ')}</div>}
+              {!sig && order.dressings?.length > 0 && <div style={{ fontSize:13, color:'var(--gray)' }}>{order.dressings.join(', ')}</div>}
               {sig && order.removeItems?.length > 0 && <div style={{ fontSize:13, color:'var(--red)' }}>NO: {order.removeItems.join(', ')}</div>}
               {sig && order.addItems?.length > 0 && <div style={{ fontSize:13, color:'var(--gray-dark)' }}>ADD: {order.addItems.join(', ')}</div>}
               {order.notes && <div style={{ fontSize:13, color:'var(--gray)', fontStyle:'italic' }}>Note: {order.notes}</div>}
