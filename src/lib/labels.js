@@ -186,3 +186,187 @@ export function rowsToPrintable(rows) {
   }))
   return { orderNum: first.order_number, customer, cart }
 }
+
+
+// ── ZPL Label Generator ──────────────────────────────────────────────────────
+// Generates ZPL II for the Zebra GK420t / ZD421
+// Label: 4" × 2.5" @ 203 DPI = 812 × 508 dots
+//
+// Layout:
+//   TOP:    Logo (left) | ibfoods.com small under logo | Customer name + "For: X" (center) | Order # box (right)
+//   SEP:    Full-width horizontal rule
+//   MIDDLE: Bread, proteins, cheeses, toppings, dressings (comma-joined per category) | notes
+//           Signature: item name + "Signature Sandwich" + notes
+//   SEP:    Full-width horizontal rule
+//   FOOTER: Phone | Total | Location
+//   BAR:    Full-width barcode (UPC-A, scannable height)
+
+// Location abbreviations for footer
+const LOC_ABBR = {
+  'new-hyde-park': 'NHP',
+  'wantagh':       'WAN',
+  'maspeth':       'MAS',
+  'woodbury':      'WBY',
+  'garden-city':   'GDN',
+}
+
+// Truncate a string to maxLen chars, adding ellipsis if needed
+function zTrunc(str, maxLen) {
+  if (!str) return ''
+  return str.length > maxLen ? str.slice(0, maxLen - 1) + '\u2026' : str
+}
+
+// Escape ZPL field data (^ and ~ are ZPL control chars)
+function zEsc(str) {
+  return String(str || '').replace(/\^/g, ' ').replace(/~/g, ' ')
+}
+
+// Build a single ZPL label string
+// orderNum    — string e.g. "1042"
+// customer    — { firstName, lastName, phone }
+// order       — same shape as buildLabelHtml order param
+// sandwichIndex — 0-based index within cart
+// sandwichTotal — total sandwiches in cart
+// location    — location id string e.g. "woodbury" (optional)
+export function buildZpl(orderNum, customer, order, sandwichIndex, sandwichTotal, location) {
+  const DPI    = 203
+  const W      = 812   // label width dots  (4.00")
+  const H      = 508   // label height dots (2.50")
+  const M      = 20    // left/right margin dots
+
+  // ── Derived values ─────────────────────────────────────────────────────────
+  const isMulti     = sandwichTotal > 1
+  const orderLabel  = isMulti ? `${orderNum}-${sandwichIndex + 1}` : orderNum
+  const isSig       = order.type === 'signature'
+  const total       = order.storedTotal != null ? order.storedTotal : calcTotal(order)
+  const locAbbr     = LOC_ABBR[location] || (location ? location.slice(0,3).toUpperCase() : '')
+  const custName    = zEsc(`${customer.firstName} ${customer.lastName}`)
+  const forName     = order.labelName ? zEsc(`For: ${order.labelName}`) : ''
+  const phone       = zEsc(customer.phone || '')
+
+  // ── Barcode value ──────────────────────────────────────────────────────────
+  let barcodeVal
+  if (isSig) {
+    barcodeVal = String(order.signatureUpc || '').padStart(11, '0').slice(0, 11)
+  } else {
+    const raw  = isMulti ? `${orderNum}${sandwichIndex + 1}` : orderNum
+    barcodeVal = raw.padStart(11, '0').slice(0, 11)
+  }
+
+  // ── Item lines (BYO) — comma-joined per category ───────────────────────────
+  const itemLines = []
+  if (!isSig) {
+    if (order.bread)                           itemLines.push(zEsc(order.bread))
+    if (order.proteins?.length)                itemLines.push(zEsc(order.proteins.join(', ')))
+    if (order.cheeses?.length)                 itemLines.push(zEsc(order.cheeses.join(', ')))
+    const tops = [...(order.paidToppings||[]), ...(order.freeToppings||[])]
+    if (tops.length)                           itemLines.push(zEsc(zTrunc(tops.join(', '), 55)))
+    if (order.dressings?.length)               itemLines.push(zEsc(zTrunc(order.dressings.join(', '), 55)))
+  } else {
+    const sigName = order.signatureName || 'Signature Sandwich'
+    itemLines.push(zEsc(sigName))
+    itemLines.push('Signature Sandwich')
+  }
+  if (order.notes) itemLines.push(zEsc(zTrunc(`Note: ${order.notes}`, 55)))
+
+  // ── ZPL coordinates ────────────────────────────────────────────────────────
+  // Top section: logo placeholder box | customer block | order box
+  // Logo area: x=M, y=10, ~90×90 dots
+  const logoX = M
+  const logoY = 8
+  const logoSize = 88
+
+  // Order box: right side, ~140 wide
+  const orderBoxW = 148
+  const orderBoxX = W - M - orderBoxW
+  const orderBoxY = 8
+  const orderBoxH = 110
+
+  // Customer block: between logo and order box
+  const custX = logoX + logoSize + 18
+  const custNameY = 18
+  const forNameY  = 58
+
+  // Separator Y positions
+  const sep1Y = 122   // below header
+  const sep2Y = 370   // above footer
+
+  // Item block starts below sep1
+  let itemY = sep1Y + 14
+  const itemLineH = 30  // dots per line (~14pt at 203dpi)
+
+  // Footer Y
+  const footerY = sep2Y + 14
+
+  // Barcode: bottom strip, full width
+  const bcY    = 408
+  const bcH    = 80   // scannable height
+  const bcX    = M + 10
+
+  // ── Build ZPL ──────────────────────────────────────────────────────────────
+  const lines = []
+
+  lines.push('^XA')                          // start label
+  lines.push(`^PW${W}`)                      // print width
+  lines.push(`^LL${H}`)                      // label length
+  lines.push('^LH0,0')                       // label home
+  lines.push('^CI28')                        // UTF-8 encoding
+
+  // ── Logo placeholder box (until real ZPL graphic is uploaded) ──────────────
+  lines.push(`^FO${logoX},${logoY}^GB${logoSize},${logoSize},3^FS`)   // border box
+  lines.push(`^FO${logoX+8},${logoY+28}^A0N,18,16^FDIB^FS`)           // "IB" centered
+  lines.push(`^FO${logoX+2},${logoY+logoSize+4}^A0N,16,14^FDibfoods.com^FS`) // website below logo
+
+  // ── Customer name ──────────────────────────────────────────────────────────
+  lines.push(`^FO${custX},${custNameY}^A0N,34,32^FD${zTrunc(custName, 22)}^FS`)
+  if (forName) {
+    lines.push(`^FO${custX},${forNameY}^A0N,24,22^FD${forName}^FS`)
+  }
+
+  // ── Order box ──────────────────────────────────────────────────────────────
+  lines.push(`^FO${orderBoxX},${orderBoxY}^GB${orderBoxW},${orderBoxH},3^FS`)
+  lines.push(`^FO${orderBoxX+6},${orderBoxY+6}^A0N,18,16^FDORDER^FS`)
+  // Big order number — scale font size based on length
+  const orderFontSize = orderLabel.length > 4 ? 36 : 52
+  const orderNumY = orderBoxY + 28
+  lines.push(`^FO${orderBoxX+6},${orderNumY}^A0N,${orderFontSize},${orderFontSize}^FD${orderLabel}^FS`)
+  if (isMulti) {
+    lines.push(`^FO${orderBoxX+6},${orderBoxY+orderBoxH-22}^A0N,16,14^FD${sandwichIndex+1}/${sandwichTotal}^FS`)
+  }
+
+  // ── Separator 1 ────────────────────────────────────────────────────────────
+  lines.push(`^FO${M},${sep1Y}^GB${W - M*2},2,2^FS`)
+
+  // ── Item lines ─────────────────────────────────────────────────────────────
+  // First line slightly larger (bread / signature name)
+  itemLines.forEach((line, i) => {
+    const fontSize = i === 0 ? 28 : 22
+    const y = itemY + i * itemLineH
+    if (y < sep2Y - 10) {   // don't overflow into footer
+      lines.push(`^FO${M},${y}^A0N,${fontSize},${fontSize - 2}^FD${line}^FS`)
+    }
+  })
+
+  // ── Separator 2 ────────────────────────────────────────────────────────────
+  lines.push(`^FO${M},${sep2Y}^GB${W - M*2},2,2^FS`)
+
+  // ── Footer: Phone | Total | Location ───────────────────────────────────────
+  lines.push(`^FO${M},${footerY}^A0N,22,20^FD${phone}^FS`)
+  lines.push(`^FO340,${footerY}^A0N,22,20^FD${fmtMoney(total)}^FS`)
+  if (locAbbr) {
+    lines.push(`^FO${W - M - 80},${footerY}^A0N,22,20^FD${locAbbr}^FS`)
+  }
+
+  // ── Barcode (UPC-A, full width, scannable height) ──────────────────────────
+  // ^BCN = barcode field, N=normal, height, printInterpretationLine, printInterpretationLineAbove, checkDigit
+  lines.push(`^FO${bcX},${bcY}^BY2,3,${bcH}^BCN,${bcH},Y,N,N^FD${barcodeVal}^FS`)
+
+  lines.push('^XZ')   // end label
+
+  return lines.join('\n')
+}
+
+// Build ZPL for a full cart (one ZPL job = all sandwiches concatenated)
+export function buildCartZpl(orderNum, customer, cart, location) {
+  return cart.map((order, i) => buildZpl(orderNum, customer, order, i, cart.length, location)).join('\n')
+}
