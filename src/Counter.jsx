@@ -238,7 +238,7 @@ function QuickBuildScreen({ onBack, onNext, initial }) {
           <div style={S.sectionTitle}>Bread</div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
             {ALL_BREADS.map(b => (
-              <button key={b.name} style={S.chip(bread === b.name)} onClick={() => { setBread(b.name); setProteins([]); setDoubleMeat(false) }}>{b.name}</button>
+              <button key={b} style={S.chip(bread === b)} onClick={() => { setBread(b); setProteins([]); setDoubleMeat(false) }}>{b}</button>
             ))}
           </div>
         </div>
@@ -347,7 +347,7 @@ function CheeseAndToppingsScreen({ onBack, onNext, bread, initial }) {
           <div style={S.sectionTitle}>Toppings <span style={{ color:'var(--gray)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>· up to 2 free</span></div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
             {FREE_TOPPINGS.map(t => (
-              <button key={t.name} style={S.chip(freeToppings.includes(t.name))} onClick={() => toggle(freeToppings, setFreeToppings, t.name, 2)}>{t.name}</button>
+              <button key={t} style={S.chip(freeToppings.includes(t))} onClick={() => toggle(freeToppings, setFreeToppings, t, 2)}>{t}</button>
             ))}
           </div>
         </div>
@@ -357,7 +357,7 @@ function CheeseAndToppingsScreen({ onBack, onNext, bread, initial }) {
           <div style={S.sectionTitle}>Dressings <span style={{ color:'var(--gray)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>· up to 2</span></div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
             {DRESSINGS.map(d => (
-              <button key={d.name} style={S.chip(dressings.includes(d.name))} onClick={() => toggle(dressings, setDressings, d.name, 2)}>{d.name}</button>
+              <button key={d} style={S.chip(dressings.includes(d))} onClick={() => toggle(dressings, setDressings, d, 2)}>{d}</button>
             ))}
           </div>
         </div>
