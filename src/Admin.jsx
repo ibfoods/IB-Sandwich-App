@@ -483,6 +483,7 @@ function Users({ user, onLogout, onNav }) {
           <button onClick={() => onNav('reports')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Reports</button>
           <button onClick={() => onNav('sms')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>SMS Opt-Ins</button>
           <button onClick={() => onNav('users')} style={{ ...btn }}>Users</button>
+          <button onClick={() => onNav('settings')} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }}>Settings</button>
         </div>
 
         <div style={card}>
@@ -506,6 +507,217 @@ function Users({ user, onLogout, onNav }) {
           </a>
         </div>
       </div>
+    </div>
+  )
+}
+
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+function Settings({ user, onLogout, onNav }) {
+  const [pins, setPins] = useState([])
+  const [settings, setSettings] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  // New PIN form
+  const [newName, setNewName] = useState('')
+  const [newInitials, setNewInitials] = useState('')
+  const [newPin, setNewPin] = useState('')
+  const [pinErr, setPinErr] = useState('')
+
+  async function load() {
+    setLoading(true)
+    const [{ data: pinData }, { data: settingsData }] = await Promise.all([
+      supabase.from('staff_pins').select('*').order('name'),
+      supabase.from('app_settings').select('key,value').is('location_id', null),
+    ])
+    setPins(pinData || [])
+    const s = Object.fromEntries((settingsData || []).map(r => [r.key, r.value]))
+    setSettings(s)
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  // Auto-derive initials from name
+  function handleNameChange(val) {
+    setNewName(val)
+    const parts = val.trim().split(/\s+/).filter(Boolean)
+    setNewInitials(parts.map(p => p[0].toUpperCase()).join('').slice(0, 3))
+  }
+
+  async function addPin() {
+    setPinErr('')
+    if (!newName.trim()) return setPinErr('Name is required')
+    if (!newPin.match(/^\d{4}$/)) return setPinErr('PIN must be exactly 4 digits')
+    if (!newInitials.trim()) return setPinErr('Initials are required')
+    const { error } = await supabase.from('staff_pins').insert({ name: newName.trim(), initials: newInitials.trim().toUpperCase(), pin: newPin })
+    if (error) return setPinErr(error.message.includes('unique') ? 'That PIN is already taken' : error.message)
+    setNewName(''); setNewInitials(''); setNewPin('')
+    load()
+  }
+
+  async function togglePin(id, active) {
+    await supabase.from('staff_pins').update({ active: !active }).eq('id', id)
+    load()
+  }
+
+  async function deletePin(id) {
+    if (!window.confirm('Remove this staff PIN?')) return
+    await supabase.from('staff_pins').delete().eq('id', id)
+    load()
+  }
+
+  async function saveSetting(key, value) {
+    setSaving(true)
+    await supabase.from('app_settings').upsert({ location_id: null, key, value }, { onConflict: 'location_id,key' })
+    setSettings(s => ({ ...s, [key]: value }))
+    setSaving(false)
+    setMsg('Saved')
+    setTimeout(() => setMsg(''), 2000)
+  }
+
+  const sectionHead = { fontSize:16, fontWeight:700, marginBottom:16, color:'#1a1a1a', borderBottom:'2px solid #f0f0f0', paddingBottom:8 }
+  const toggle = (key) => (
+    <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+      <div
+        onClick={() => saveSetting(key, settings[key] === 'true' ? 'false' : 'true')}
+        style={{
+          width:44, height:24, borderRadius:12, cursor:'pointer', flexShrink:0,
+          background: settings[key] === 'true' ? '#8B1A2B' : '#ddd',
+          position:'relative', transition:'background 0.2s',
+        }}
+      >
+        <div style={{
+          position:'absolute', top:2, left: settings[key] === 'true' ? 22 : 2,
+          width:20, height:20, borderRadius:'50%', background:'#fff',
+          transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)',
+        }} />
+      </div>
+    </label>
+  )
+
+  return (
+    <div style={{ fontFamily:'system-ui,sans-serif', maxWidth:700, margin:'0 auto', padding:20 }}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24, flexWrap:'wrap', gap:12 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <img src="/logo.jpg" alt="IB" style={{ width:32, height:32, objectFit:'contain' }} />
+          <span style={{ fontWeight:700, fontSize:16 }}>Settings</span>
+          {msg && <span style={{ fontSize:12, color:'#4caf50', fontWeight:600 }}>{msg}</span>}
+        </div>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          {[['orders','Orders'],['reports','Reports'],['sms','SMS Opt-Ins'],['users','Users'],['settings','Settings']].map(([t,l]) => (
+            <button key={t} onClick={() => onNav(t)} style={{ ...btn, ...(t === 'settings' ? {} : { background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B' }) }}>{l}</button>
+          ))}
+          <button onClick={onLogout} style={{ ...btn, background:'#fff', color:'#888', border:'1px solid #ddd' }}>Log out</button>
+        </div>
+      </div>
+
+      {loading ? <div style={{ color:'#888', fontSize:14 }}>Loading…</div> : <>
+
+        {/* ── App Settings ──────────────────────────────────────────────── */}
+        <div style={card}>
+          <div style={sectionHead}>App Settings</div>
+
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, paddingBottom:16, borderBottom:'1px solid #f0f0f0' }}>
+            <div>
+              <div style={{ fontWeight:600, fontSize:14 }}>Deli Ticket Number</div>
+              <div style={{ fontSize:12, color:'#888', marginTop:2 }}>Show a ticket number field on the customer kiosk (0–99)</div>
+            </div>
+            {toggle('deli_number_enabled')}
+          </div>
+
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, paddingBottom:16, borderBottom:'1px solid #f0f0f0' }}>
+            <div>
+              <div style={{ fontWeight:600, fontSize:14 }}>Auto-Print Labels</div>
+              <div style={{ fontSize:12, color:'#888', marginTop:2 }}>Automatically print when a new order arrives (requires Zebra setup)</div>
+            </div>
+            {toggle('auto_print_enabled')}
+          </div>
+
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, paddingBottom:16, borderBottom:'1px solid #f0f0f0' }}>
+            <div>
+              <div style={{ fontWeight:600, fontSize:14 }}>Staff PIN Login</div>
+              <div style={{ fontSize:12, color:'#888', marginTop:2 }}>Require PIN at the counter screen</div>
+            </div>
+            {toggle('staff_pin_enabled')}
+          </div>
+
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, paddingBottom:16, borderBottom:'1px solid #f0f0f0' }}>
+            <div>
+              <div style={{ fontWeight:600, fontSize:14 }}>Order-Ready Notifications</div>
+              <div style={{ fontSize:12, color:'#888', marginTop:2 }}>Send customer SMS when order is marked complete (requires Twilio)</div>
+            </div>
+            {toggle('notifications_enabled')}
+          </div>
+
+          <div>
+            <div style={{ fontWeight:600, fontSize:14, marginBottom:6 }}>In-Store Label Text</div>
+            <div style={{ fontSize:12, color:'#888', marginBottom:8 }}>Appears on the label instead of a customer name for in-store counter orders</div>
+            <div style={{ display:'flex', gap:8 }}>
+              <input
+                value={settings.instore_label_text || ''}
+                onChange={e => setSettings(s => ({ ...s, instore_label_text: e.target.value }))}
+                placeholder="Sandwich Order"
+                style={{ ...inp, marginBottom:0, flex:1 }}
+              />
+              <button onClick={() => saveSetting('instore_label_text', settings.instore_label_text || 'Sandwich Order')} style={btn}>Save</button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Staff PINs ────────────────────────────────────────────────── */}
+        <div style={card}>
+          <div style={sectionHead}>Staff PINs</div>
+
+          {/* Existing pins */}
+          {pins.length === 0 && <div style={{ fontSize:13, color:'#888', marginBottom:16 }}>No staff PINs added yet.</div>}
+          {pins.map(p => (
+            <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 0', borderBottom:'1px solid #f5f5f5' }}>
+              <div style={{ width:36, height:36, borderRadius:'50%', background: p.active ? '#8B1A2B' : '#ddd', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:13, flexShrink:0 }}>
+                {p.initials}
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:600, fontSize:14, color: p.active ? '#1a1a1a' : '#999' }}>{p.name}</div>
+                <div style={{ fontSize:12, color:'#888' }}>PIN: {p.pin} · {p.active ? 'Active' : 'Inactive'}</div>
+              </div>
+              <button onClick={() => togglePin(p.id, p.active)} style={{ ...btn, background:'#fff', color:'#8B1A2B', border:'1px solid #8B1A2B', padding:'6px 12px', fontSize:12 }}>
+                {p.active ? 'Deactivate' : 'Activate'}
+              </button>
+              <button onClick={() => deletePin(p.id)} style={{ ...btn, background:'#fff', color:'#c62828', border:'1px solid #c62828', padding:'6px 12px', fontSize:12 }}>
+                Remove
+              </button>
+            </div>
+          ))}
+
+          {/* Add new PIN */}
+          <div style={{ marginTop:20, paddingTop:16, borderTop:'1px solid #f0f0f0' }}>
+            <div style={{ fontWeight:600, fontSize:14, marginBottom:12 }}>Add Staff Member</div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              <input value={newName} onChange={e => handleNameChange(e.target.value)} placeholder="Full name" style={{ ...inp, marginBottom:0, flex:'2 1 140px' }} />
+              <input value={newInitials} onChange={e => setNewInitials(e.target.value.toUpperCase().slice(0,3))} placeholder="Initials" style={{ ...inp, marginBottom:0, flex:'0 1 80px', textTransform:'uppercase' }} />
+              <input value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g,'').slice(0,4))} placeholder="4-digit PIN" inputMode="numeric" style={{ ...inp, marginBottom:0, flex:'0 1 100px' }} />
+              <button onClick={addPin} style={{ ...btn, flex:'0 0 auto' }}>Add</button>
+            </div>
+            {pinErr && <div style={{ color:'#c62828', fontSize:12, marginTop:8 }}>{pinErr}</div>}
+          </div>
+        </div>
+
+        {/* ── Supabase Auth Users note ──────────────────────────────────── */}
+        <div style={card}>
+          <div style={sectionHead}>Admin Users</div>
+          <p style={{ fontSize:13, color:'#555', lineHeight:1.6, margin:0 }}>
+            Admin logins are managed through Supabase Authentication.
+            To add or remove admin users, go to the{' '}
+            <a href="https://supabase.com/dashboard/project/jrdylryrawprhvefzfid/auth/users" target="_blank" rel="noreferrer" style={{ color:'#8B1A2B' }}>
+              Supabase Auth dashboard
+            </a>.
+          </p>
+        </div>
+
+      </>}
     </div>
   )
 }
@@ -539,6 +751,7 @@ export default function Admin() {
   }
 
   if (!user) return <Login onLogin={setUser} />
+  if (tab === 'settings') return <Settings user={user} onLogout={logout} onNav={setTab} />
   if (tab === 'users') return <Users user={user} onLogout={logout} onNav={setTab} />
   if (tab === 'sms') return <SmsOptIns user={user} onLogout={logout} onNav={setTab} />
   if (tab === 'reports') return <Reports user={user} onLogout={logout} onNav={setTab} />
