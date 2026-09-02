@@ -321,8 +321,8 @@ function CheeseAndToppingsScreen({ onBack, onNext, bread, initial }) {
           <div style={S.sectionTitle}>Cheese <span style={{ color:'var(--gray)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>· up to 2</span></div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
             {CHEESES.map(c => (
-              <button key={c.name} style={S.chip(cheeses.includes(c.name))} onClick={() => toggle(cheeses, setCheeses, c.name, 2)}>
-                {c.name} <span style={{ color:'var(--gray)', fontSize:12 }}>{fmtMoney(hero ? c.hero : c.roll)}</span>
+              <button key={c} style={S.chip(cheeses.includes(c))} onClick={() => toggle(cheeses, setCheeses, c, 2)}>
+                {c} <span style={{ color:'var(--gray)', fontSize:12 }}>{fmtMoney(hero ? 2.00 : 1.50)}</span>
               </button>
             ))}
           </div>
