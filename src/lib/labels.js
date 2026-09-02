@@ -201,13 +201,13 @@ export function rowsToPrintable(rows) {
 //   FOOTER: Phone | Total | Location
 //   BAR:    Full-width barcode (UPC-A, scannable height)
 
-// Location abbreviations for footer
+// Location display names for footer
 const LOC_ABBR = {
-  'new-hyde-park': 'NHP',
-  'wantagh':       'WAN',
-  'maspeth':       'MAS',
-  'woodbury':      'WBY',
-  'garden-city':   'GDN',
+  'new-hyde-park': 'New Hyde Park',
+  'wantagh':       'Wantagh',
+  'maspeth':       'Maspeth',
+  'woodbury':      'Woodbury',
+  'garden-city':   'Garden City',
 }
 
 
@@ -361,7 +361,7 @@ export function buildZpl(orderNum, customer, order, sandwichIndex, sandwichTotal
   lines.push(`^FO${M},${footerY}^A0N,22,20^FD${phone}^FS`)
   lines.push(`^FO340,${footerY}^A0N,22,20^FD${fmtMoney(total)}^FS`)
   if (locAbbr) {
-    lines.push(`^FO${W - M - 80},${footerY}^A0N,22,20^FD${locAbbr}^FS`)
+    lines.push(`^FO${W - M - 200},${footerY}^A0N,22,20^FD${locAbbr}^FS`)
   }
 
   // ── Barcode (UPC-A, full width, scannable height) ──────────────────────────
